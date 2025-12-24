@@ -5,7 +5,7 @@ WaveLabX is a small, open-source Python package for laboratory wave-probe analys
 - one-probe zero-crossing wave statistics, and
 - frequency-domain incident–reflected decomposition (two-probe Goda–Suzuki and three-probe redundant-array methods).
 
-![WaveLabX software workflow and architecture](figures/wavelabx_architecture.svg)
+![WaveLabX software workflow and architecture](figures/wavelabx_architecture.pdf)
 
 ## Installation
 
