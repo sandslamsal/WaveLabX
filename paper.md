@@ -23,65 +23,94 @@ doi: 10.5281/zenodo.18049227
 
 ## Summary
 
-Wave-probe time series collected in wave flumes and basins are widely used to compute wave statistics (e.g., significant wave height and characteristic periods) and to estimate incident and reflected wave components for reflection analysis. Although the underlying methods are well established, their practical implementation is often fragmented across laboratories in the form of facility-specific scripts, limiting reproducibility, transparency, and cross-study comparison.
+WaveLabX is an open-source Python toolkit for processing laboratory wave-probe time series in coastal and hydraulic engineering. It provides a unified and reproducible workflow for zero-crossing wave statistics and frequency-domain incident–reflected decomposition using either the classical two-probe Goda–Suzuki method or a redundant three-probe array formulation. The software integrates standardized preprocessing, probe-spacing checks, numerical-conditioning diagnostics, and spectral integration to support reliable reflection analysis in wave flumes and basins.
 
-WaveLabX is an open-source Python package that provides a unified and reproducible workflow for (1) zero-crossing wave statistics from single-probe records and (2) frequency-domain incident–reflected decomposition using either the classical two-probe Goda–Suzuki method or a redundant three-probe array method. The package integrates automated probe-spacing checks, numerical-conditioning diagnostics, and optional visualization tools to support quality control and interpretation.
-
-The software is designed for use in laboratory experiments and research-oriented workflows, with an emphasis on clarity, diagnostic transparency, and reproducibility.
-
-Repository: <https://github.com/sandslamsal/WaveLabX>.
+WaveLabX consolidates analysis methods that are widely used but often implemented as facility-specific scripts, improving transparency, reproducibility, and cross-study comparability.
 
 ## Statement of need
 
-Wave reflection analysis is highly sensitive to probe spacing and can yield unreliable results when probe configurations become ill-conditioned, even when nominal spacing guidelines are satisfied. In many existing implementations, such failures occur silently, making it difficult for users to assess the validity of computed incident and reflected components.
+Wave-probe measurements are central to physical modeling of wave–structure interaction, where wave heights, spectra, and reflection coefficients are required to assess coastal protection systems, breakwaters, and experimental wave conditions. Although zero-crossing statistics and the Goda–Suzuki reflection method are well established, their implementations are frequently fragmented across laboratories, limiting reproducibility and long-term preservation of experimental workflows.
 
-Researchers and practitioners therefore require tools that are not only methodologically correct, but that also expose diagnostic information related to spacing validity, numerical conditioning, and spectral retention. Such diagnostics are essential for interpreting results, comparing experiments, and ensuring reproducible analysis.
+A critical limitation of classical reflection analysis is its sensitivity to probe spacing and numerical conditioning. Even when nominal spacing guidelines are satisfied, certain probe configurations can produce ill-conditioned inversions and physically inconsistent results. These issues often remain undetected in existing implementations.
 
-WaveLabX addresses this need by:
-- providing a readable, open-source reference implementation of common wave-probe analysis workflows;
-- standardizing preprocessing, spectral estimation, and decomposition steps across methods;
-- reporting diagnostic indicators (e.g., matrix condition numbers and retained-energy fractions) that guide method selection and result interpretation.
-
-## Functionality
-
-WaveLabX provides three core capabilities:
-
-1. **Zero-crossing wave statistics**  
-   Wave-by-wave reconstruction from a single probe time series, returning bulk statistics (e.g., significant wave height and mean period) as well as wave-by-wave height and period arrays.
-
-2. **Two-probe reflection decomposition (Goda–Suzuki)**  
-   Frequency-domain estimation of incident and reflected spectra and bulk metrics (e.g., $H_{m0,i}$, $H_{m0,r}$, and reflection coefficient $K_r$), with automated probe-spacing validation and numerical-conditioning checks.
-
-3. **Three-probe redundant array decomposition**  
-   Redundant pairing of probes with validity filtering and averaging to obtain stable incident and reflected estimates when individual probe pairs are unfavorable or ill-conditioned.
-
-The package includes example scripts and datasets that demonstrate typical usage scenarios and highlight the impact of probe spacing and numerical conditioning on reflection estimates. The overall workflow and software architecture are shown in \autoref{fig:wavelabx-arch}.
-
-![WaveLabX workflow and architecture.\label{fig:wavelabx-arch}](figures/wavelabx_architecture.jpg)
+WaveLabX addresses this need by providing a transparent reference implementation that embeds spacing diagnostics, conditioning checks, and retained-energy metrics directly into the analysis, allowing users to assess result reliability alongside computed wave quantities.
 
 ## Methodological background
 
-WaveLabX relies on linear wave theory to compute the wavenumber $k$ from the dispersion relation
-$$\omega^2 = gk\tanh(kh),$$
-and uses frequency-domain incident–reflected separation to estimate incident and reflected spectra $S_i(f)$ and $S_r(f)$ (e.g., Goda–Suzuki; [@goda1976incident]). Spectral significant wave heights are computed as
-$$H_{m0} = 4\sqrt{\int S(f)\,df}, \qquad
-K_r = \frac{H_{m0,r}}{H_{m0,i}}.$$
-For the two-probe method, WaveLabX reports probe-spacing diagnostics and warnings when the non-dimensional spacing falls outside recommended bounds ($0.05 \le \Delta x/L \le 0.45$; [@goda1976incident]).
+### Linear wave theory and dispersion
 
-## Illustrative example
+WaveLabX assumes linear wave theory to describe free-surface elevation as a superposition of incident and reflected wave components. The frequency-dependent wavenumber \(k\) is obtained from the linear dispersion relation
+$$
+\omega^2 = gk \tanh(kh),
+$$
+where \(\omega = 2\pi f\), \(h\) is the still-water depth, and \(g\) is gravitational acceleration. This relation is solved iteratively for each frequency and is used consistently across all reflection algorithms.
 
-WaveLabX includes an illustrative dataset and analysis scripts showing how probe spacing and numerical conditioning can significantly affect two-probe reflection results, and how redundant three-probe estimation can provide more stable outcomes. The example demonstrates the recovery of incident and reflected spectra after validity filtering and redundant averaging. Example spectra from a three-probe redundant array are shown in \autoref{fig:threeprobe}.
+### Two-probe incident–reflected decomposition
 
-![Three-probe redundant array spectra.\label{fig:threeprobe}](figures/threeprobe_spectra.png)
+For two probes located at positions \(x_1\) and \(x_2\), the free surface is modeled as
+$$
+\eta(x,t)
+= a_i \cos(\omega t - kx)
++ a_r \cos(\omega t + kx),
+$$
+where \(a_i\) and \(a_r\) are the incident and reflected amplitudes. Fourier coefficients from the two probes are used to solve for frequency-dependent incident and reflected spectra following the formulation of Goda and Suzuki [@goda1976incident].
 
-## Availability and reuse
+Integrated spectral wave heights are computed as
+$$
+H_{m0} = 4\sqrt{\int S(f)\,df},
+$$
+with the reflection coefficient defined as
+$$
+K_r = \frac{H_{m0,r}}{H_{m0,i}}.
+$$
 
-WaveLabX is released under the MIT License and is intended to be easy to install and integrate into laboratory processing pipelines and Jupyter-based workflows. The repository includes example datasets, scripts to reproduce figures, and documentation describing common usage patterns.
+Classical guidance recommends a non-dimensional probe spacing
+$$
+0.05 \le \frac{\Delta x}{L} \le 0.45,
+$$
+where \(L\) is the linear wavelength associated with the dominant period. WaveLabX evaluates this criterion and additionally reports the numerical conditioning of the inversion to identify frequencies where the solution becomes unreliable.
 
-The software is designed to be extensible, allowing users to incorporate additional wave-processing routines or adapt the workflows to facility-specific needs.
+### Three-probe redundant array method
+
+With three probes at \((x_1, x_2, x_3)\), WaveLabX forms three independent probe pairs. For each frequency, incident and reflected solutions are computed for all pairs, frequencies violating wavelength or conditioning constraints are discarded, and consistent solutions are averaged. If \(\mathcal{V}(f)\) denotes the set of valid probe pairs at frequency \(f\), the reconstructed amplitudes are
+$$
+\hat{a}_i(f)
+= \frac{1}{|\mathcal{V}(f)|}
+\sum_{(i,j)\in\mathcal{V}(f)} a_i^{(i,j)}(f),
+\qquad
+\hat{a}_r(f)
+= \frac{1}{|\mathcal{V}(f)|}
+\sum_{(i,j)\in\mathcal{V}(f)} a_r^{(i,j)}(f).
+$$
+
+This redundant formulation improves robustness relative to the two-probe method, particularly when one probe pair is unfavorably spaced or poorly conditioned.
+
+The overall workflow and software architecture are shown in Figure 1.
+
+![WaveLabX workflow and architecture.](figures/wavelabx_architecture.jpg)
+
+## Usage
+
+WaveLabX is designed for use in Python scripts and Jupyter notebooks. Users provide wave-probe time series, sampling frequency, water depth, and probe positions. Core functions return bulk wave metrics, frequency-dependent spectra, and diagnostic information. Optional plotting routines generate publication-quality figures of spectra and reconstructed incident and reflected time series.
+
+## Applications and scope
+
+WaveLabX has been applied to laboratory studies of wave–structure interaction, including submerged breakwaters and modular reef systems. Typical applications include reflection-coefficient estimation, comparison of alternative probe layouts, and quality-controlled post-processing of experimental datasets.
+
+The software is intended for one-dimensional wave propagation with collinear probe arrangements and linear-wave behavior.
+
+## Limitations
+
+WaveLabX assumes collinear probe geometry aligned with the dominant wave direction and relies on linear dispersion. Strongly nonlinear waves, breaking, or multi-directional wave fields are outside the intended scope. Portions of the spectrum may be rejected due to unfavorable spacing or poor conditioning; when the retained-energy fraction is low, the resulting estimates may be unreliable.
+
+## Availability
+
+WaveLabX is available at <https://github.com/sandslamsal/WaveLabX>.  
+The software runs on Windows, macOS, and Linux with Python ≥ 3.9 and is released under the MIT License.  
+A citable archive is available via Zenodo (DOI: 10.5281/zenodo.18049227).
 
 ## Acknowledgements
 
-WaveLabX was developed based on experimental workflows used in the SUSTAIN Laboratory at the University of Miami. The authors acknowledge colleagues and technical staff who supported the experimental programs that motivated the development of this software.
+The development of WaveLabX was motivated by experimental workflows used in the SUSTAIN Laboratory at the University of Miami. The authors thank colleagues and technical staff who supported the laboratory programs that informed the design of this software.
 
 ## References

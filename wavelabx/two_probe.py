@@ -273,7 +273,7 @@ def two_probe_goda(
             ax.spines[spine].set_visible(False)
 
         # Save in journal-ready formats
-        fig.savefig("twoprobe_spectra.png", dpi=300, bbox_inches="tight")
+        fig.savefig("figures/twoprobe_spectra.png", dpi=300, bbox_inches="tight")
         # fig.savefig("twoprobe_spectra.pdf", bbox_inches="tight")
         plt.show()
         # plt.close(fig)
