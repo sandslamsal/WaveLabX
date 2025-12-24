@@ -269,7 +269,7 @@ def three_probe_array(
     #     plt.subplot(3, 1, 1)
     #     plt.plot(flim, Si, ':b', label="Incident")
     #     plt.plot(flim, Sr, 'r-.', label="Reflected")
-    #     plt.plot(flim, Sf, 'k', label="Composite (Gauge 1)")
+    #     plt.plot(flim, Sf, 'k', label="Composite")
     #     plt.xlabel("Frequency [Hz]")
     #     plt.ylabel("S(f) [m²·s]")
     #     plt.title("Incident, Reflected, and Composite Spectra")
@@ -374,7 +374,7 @@ def three_probe_array(
         ax = axes[0]
         ax.plot(flim, Si, label="Incident", color="#1f77b4", linewidth=1.2)
         ax.plot(flim, Sr, label="Reflected", color="#d62728", linestyle="--", linewidth=1.2)
-        ax.plot(flim, Sf, label="Composite (Gauge 1)", color="black", linewidth=1.0)
+        ax.plot(flim, Sf, label="Composite", color="black", linewidth=1.0)
 
         ax.set_xlabel("Frequency [Hz]")
         ax.set_ylabel(r"$S(f)$ [m²·s]")
