@@ -89,6 +89,11 @@ The overall workflow and software architecture are shown in Figure 1.
 
 ![WaveLabX workflow and architecture.](figures/wavelabx_architecture.jpg)
 
+An example three-probe decomposition output is shown in Figure 2.
+
+![Three-probe spectral decomposition.](figures/threeprobe_spectra.png)
+
+
 ## Usage
 
 WaveLabX is designed for use in Python scripts and Jupyter notebooks. Users provide wave-probe time series, sampling frequency, water depth, and probe positions. Core functions return bulk wave metrics, frequency-dependent spectra, and diagnostic information. Optional plotting routines generate publication-quality figures of spectra and reconstructed incident and reflected time series.
