@@ -37,6 +37,9 @@ WaveLabX addresses this need by providing a transparent reference implementation
 
 ## Methodological background
 
+The reflection-analysis methods implemented in WaveLabX rely on measurements from multiple wave probes aligned along the direction of wave propagation. A typical three-probe configuration used by the software is illustrated in Figure 1.
+![Schematic of three-probe wave-flume configuration showing probe positions and spacings used for incident–reflected decomposition.](figures/probessetup.png)
+
 ### Linear wave theory and dispersion
 
 WaveLabX assumes linear wave theory to describe free-surface elevation as a superposition of incident and reflected wave components. The frequency-dependent wavenumber \(k\) is obtained from the linear dispersion relation
@@ -92,7 +95,6 @@ The overall workflow and software architecture are shown in Figure 1.
 An example three-probe decomposition output is shown in Figure 2.
 
 ![Three-probe spectral decomposition.](figures/threeprobe_spectra.png)
-
 
 ## Usage
 
