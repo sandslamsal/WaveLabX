@@ -55,15 +55,18 @@ WaveLabX provides three core capabilities:
 3. **Three-probe redundant array decomposition**  
    Redundant pairing of probes with validity filtering and averaging to obtain stable incident and reflected estimates when individual probe pairs are unfavorable or ill-conditioned.
 
-
 The package includes example scripts and datasets that demonstrate typical usage scenarios and highlight the impact of probe spacing and numerical conditioning on reflection estimates. The overall workflow and software architecture are shown in \autoref{fig:wavelabx-arch}.
 
-![WaveLabX workflow and architecture.\label{fig:wavelabx-arch}](figures/wavelabx_architecture.pdf)
+![WaveLabX workflow and architecture.\label{fig:wavelabx-arch}](figures/wavelabx_architecture.jpg)
 
-The following example figure illustrates a representative validation against a synthetic benchmark, showing recovered incident and reflected quantities (see \autoref{fig:synthetic}):
+## Core mathematics
 
-![Synthetic validation of WaveLabX.\label{fig:synthetic}](figures/validation_synthetic.png)
-
+WaveLabX relies on linear wave theory to compute the wavenumber $k$ from the dispersion relation
+$$\omega^2 = gk\tanh(kh),$$
+and uses frequency-domain incident–reflected separation to estimate incident and reflected spectra $S_i(f)$ and $S_r(f)$ (e.g., Goda–Suzuki; [@goda1976incident]). Spectral significant wave heights are computed as
+$$H_{m0} = 4\sqrt{\int S(f)\,df}, \qquad
+K_r = \frac{H_{m0,r}}{H_{m0,i}}.$$
+For the two-probe method, WaveLabX reports probe-spacing diagnostics and warnings when the non-dimensional spacing falls outside recommended bounds (e.g., $0.05 \le \Delta x/L \le 0.45$; [@goda1976incident]).
 
 ## Illustrative example
 
@@ -73,7 +76,7 @@ WaveLabX includes an illustrative dataset and analysis scripts showing how probe
 
 ## Availability and reuse
 
-WaveLabX is released under the MIT License and is intended to be easy to install and integrate into laboratory processing pipelines and Jupyter-based workflows. The repository includes example datasets, scripts to reproduce validation figures, and documentation describing common usage patterns.
+WaveLabX is released under the MIT License and is intended to be easy to install and integrate into laboratory processing pipelines and Jupyter-based workflows. The repository includes example datasets, scripts to reproduce figures, and documentation describing common usage patterns.
 
 The software is designed to be extensible, allowing users to incorporate additional wave-processing routines or adapt the workflows to facility-specific needs.
 
