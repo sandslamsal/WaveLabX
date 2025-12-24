@@ -59,14 +59,14 @@ The package includes example scripts and datasets that demonstrate typical usage
 
 ![WaveLabX workflow and architecture.\label{fig:wavelabx-arch}](figures/wavelabx_architecture.jpg)
 
-## Core mathematics
+## Methodological background
 
 WaveLabX relies on linear wave theory to compute the wavenumber $k$ from the dispersion relation
 $$\omega^2 = gk\tanh(kh),$$
 and uses frequency-domain incident–reflected separation to estimate incident and reflected spectra $S_i(f)$ and $S_r(f)$ (e.g., Goda–Suzuki; [@goda1976incident]). Spectral significant wave heights are computed as
 $$H_{m0} = 4\sqrt{\int S(f)\,df}, \qquad
 K_r = \frac{H_{m0,r}}{H_{m0,i}}.$$
-For the two-probe method, WaveLabX reports probe-spacing diagnostics and warnings when the non-dimensional spacing falls outside recommended bounds (e.g., $0.05 \le \Delta x/L \le 0.45$; [@goda1976incident]).
+For the two-probe method, WaveLabX reports probe-spacing diagnostics and warnings when the non-dimensional spacing falls outside recommended bounds ($0.05 \le \Delta x/L \le 0.45$; [@goda1976incident]).
 
 ## Illustrative example
 
