@@ -56,6 +56,12 @@ WaveLabX provides three core capabilities:
 
 The package includes example scripts and datasets that demonstrate typical usage scenarios and highlight the impact of probe spacing and numerical conditioning on reflection estimates.
 
+![WaveLabX software workflow and architecture.](figures/wavelabx_architecture.svg)
+
+The following example figure illustrates a representative validation against a synthetic benchmark, showing recovered incident and reflected quantities:
+
+![Synthetic validation of WaveLabX](figures/validation_synthetic.png)
+
 ## Illustrative example
 
 WaveLabX includes an illustrative dataset and analysis scripts showing how probe spacing and numerical conditioning can significantly affect two-probe reflection results, and how redundant three-probe estimation can provide more stable outcomes. The example demonstrates the recovery of incident and reflected spectra after validity filtering and redundant averaging.
