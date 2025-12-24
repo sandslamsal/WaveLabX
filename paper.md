@@ -56,7 +56,7 @@ WaveLabX provides three core capabilities:
 
 The package includes example scripts and datasets that demonstrate typical usage scenarios and highlight the impact of probe spacing and numerical conditioning on reflection estimates.
 
-![WaveLabX software workflow and architecture.](figures/wavelabx_architecture.svg)
+![WaveLabX software workflow and architecture.](figures/wavelabx_architecture.pdf)
 
 The following example figure illustrates a representative validation against a synthetic benchmark, showing recovered incident and reflected quantities:
 
