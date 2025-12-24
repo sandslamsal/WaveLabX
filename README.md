@@ -1,40 +1,46 @@
+
 # WaveLabX
 
-WaveLabX is a small, open-source Python package for laboratory wave-probe analysis. It provides:
+WaveLabX is an open-source Python toolkit for laboratory wave-probe analysis, providing reproducible wave statistics and incident–reflected decomposition.
 
-- one-probe zero-crossing wave statistics, and
-- frequency-domain incident–reflected decomposition (two-probe Goda–Suzuki and three-probe redundant-array methods).
+- Zero-crossing wave statistics from single-probe records
+- Two-probe Goda–Suzuki frequency-domain decomposition
+- Three-probe redundant-array decomposition with validity filtering
 
-![WaveLabX software workflow and architecture](figures/wavelabx_architecture.pdf)
+
+![WaveLabX workflow and architecture](figures/wavelabx_architecture.pdf)
+
 
 ## Installation
 
-Recommended: create and use a Python virtual environment.
+Recommended: use a Python virtual environment.
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
+
 
 ## Minimal usage
 
 ```python
 import wavelabx
-# load your CSV and run the example driver
-# from run_wavelabx_example import run_wavelabx_example
-# run_wavelabx_example('wavedata.csv', fs=100.0, h=0.25, gpos=[0,0.3,0.9])
-print('WaveLabX available:', hasattr(wavelabx, '__name__'))
+# See run_wavelabx_example.ipynb for a full demonstration
 ```
+
 
 ## Files included
 
-- `wavelabx/` — package source (public API documented in docstrings)
-- `run_wavelabx_example.ipynb` — runnable example notebook
+- `wavelabx/` — package source (API documented in docstrings)
+- `run_wavelabx_example.ipynb` — example notebook
 - `wavedata.csv` — example dataset
-- `figures/` — manuscript and example figures
-- `paper.md`, `paper.bib` — manuscript source (do not modify scientific content)
+- `figures/` — figures for manuscript and examples
+- `paper.md`, `paper.bib` — JOSS manuscript source
+
 
 ## License & Citation
 
-Released under the MIT License (see `LICENSE`). If you use WaveLabX in published research please cite the manuscript in `paper.bib`.
+WaveLabX is released under the MIT License (see `LICENSE`).
+
+If you use WaveLabX in published research, please cite the JOSS manuscript (paper.md) and see CITATION.cff for citation details. A Zenodo DOI will be added after the first release.

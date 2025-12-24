@@ -54,17 +54,21 @@ WaveLabX provides three core capabilities:
 3. **Three-probe redundant array decomposition**  
    Redundant pairing of probes with validity filtering and averaging to obtain stable incident and reflected estimates when individual probe pairs are unfavorable or ill-conditioned.
 
-The package includes example scripts and datasets that demonstrate typical usage scenarios and highlight the impact of probe spacing and numerical conditioning on reflection estimates.
 
-![WaveLabX software workflow and architecture.](figures/wavelabx_architecture.pdf)
+The package includes example scripts and datasets that demonstrate typical usage scenarios and highlight the impact of probe spacing and numerical conditioning on reflection estimates. The overall workflow and software architecture are shown in \autoref{fig:wavelabx-arch}.
 
-The following example figure illustrates a representative validation against a synthetic benchmark, showing recovered incident and reflected quantities:
+![WaveLabX workflow and architecture.\label{fig:wavelabx-arch}](figures/wavelabx_architecture.pdf)
 
-![Synthetic validation of WaveLabX](figures/validation_synthetic.png)
+The following example figure illustrates a representative validation against a synthetic benchmark, showing recovered incident and reflected quantities (see \autoref{fig:synthetic}):
+
+![Synthetic validation of WaveLabX.\label{fig:synthetic}](figures/validation_synthetic.png)
+
 
 ## Illustrative example
 
-WaveLabX includes an illustrative dataset and analysis scripts showing how probe spacing and numerical conditioning can significantly affect two-probe reflection results, and how redundant three-probe estimation can provide more stable outcomes. The example demonstrates the recovery of incident and reflected spectra after validity filtering and redundant averaging.
+WaveLabX includes an illustrative dataset and analysis scripts showing how probe spacing and numerical conditioning can significantly affect two-probe reflection results, and how redundant three-probe estimation can provide more stable outcomes. The example demonstrates the recovery of incident and reflected spectra after validity filtering and redundant averaging. Example spectra from a three-probe redundant array are shown in \autoref{fig:threeprobe}.
+
+![Three-probe redundant array spectra.\label{fig:threeprobe}](figures/threeprobe_spectra.png)
 
 ## Availability and reuse
 

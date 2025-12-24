@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+title: WaveLabX
+authors:
+  - family-names: Lamsal
+    given-names: Sandesh
+    orcid: "https://orcid.org/0009-0007-9267-4019"
+  - family-names: Rhode-Barbarigos
+    given-names: Landolf
+    orcid: "https://orcid.org/0000-0001-7550-800X"
+repository-code: https://github.com/sandslamsal/WaveLabX
+license: MIT
+version: 0.1.0
+date-released: 2025-12-24
