@@ -10,7 +10,7 @@ WaveLabX is an open-source Python toolkit for laboratory wave-probe analysis, pr
 - Three-probe redundant-array decomposition with validity filtering
 
 
-![WaveLabX workflow and architecture](figures/wavelabx_architecture.pdf)
+![WaveLabX workflow and architecture](figures/wavelabx_architecture.jpg)
 
 
 ## Installation
