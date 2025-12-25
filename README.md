@@ -45,4 +45,7 @@ import wavelabx
 
 WaveLabX is released under the MIT License (see `LICENSE`).
 
-If you use WaveLabX in published research, please cite the JOSS manuscript (paper.md) and see CITATION.cff for citation details. A Zenodo DOI will be added after the first release.
+If you use WaveLabX in published research, please cite the associated JOSS manuscript and the archived software release on Zenodo. Citation metadata is provided in `CITATION.cff`.
+
+Zenodo archive DOI: https://doi.org/10.5281/zenodo.18049227
+
