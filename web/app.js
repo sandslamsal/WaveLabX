@@ -469,6 +469,7 @@ function renderTable() {
  * Visualization — wave-probe time-series plot for one file (canvas)
  * ------------------------------------------------------------------------- */
 const VIZ_COLORS = ["#1f5fa6", "#c0392b", "#1f7a4d", "#b9591a", "#6a4ca8", "#0e8a8a"];
+let vizView = null;   // visible time window {t0,t1}; null = full record
 
 /* Repopulate the file selector from the current records (selection kept). */
 function refreshVizFiles() {
@@ -521,14 +522,23 @@ function drawViz() {
   const dt = 1 / fs;
   const tMax = (N - 1) * dt;
 
+  // visible time window (zoom state); null = full record
+  let t0 = 0, t1 = tMax;
+  if (vizView) {
+    t0 = Math.max(0, Math.min(vizView.t0, tMax));
+    t1 = Math.max(t0 + dt, Math.min(vizView.t1, tMax));
+  }
+  const i0 = Math.max(0, Math.floor(t0 / dt));
+  const i1 = Math.min(N - 1, Math.ceil(t1 / dt));
+
   const mL = 60, mR = 14, mT = 26, mB = 34;
   const pW = cssW - mL - mR, pH = cssH - mT - mB;
 
-  // y-range across the selected probes
+  // y-range across the selected probes within the visible window
   let yMin = Infinity, yMax = -Infinity;
   for (const p of probes) {
     const col = rec.cols[p];
-    for (let i = 0; i < N; i++) {
+    for (let i = i0; i <= i1; i++) {
       if (col[i] < yMin) yMin = col[i];
       if (col[i] > yMax) yMax = col[i];
     }
@@ -538,7 +548,7 @@ function drawViz() {
   const pad = (yMax - yMin) * 0.06;
   yMin -= pad; yMax += pad;
 
-  const xOf = (t) => mL + (t / tMax) * pW;
+  const xOf = (t) => mL + ((t - t0) / (t1 - t0)) * pW;
   const yOf = (v) => mT + pH - ((v - yMin) / (yMax - yMin)) * pH;
 
   // grid + axis ticks
@@ -556,11 +566,13 @@ function drawViz() {
   }
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
+  const tSpan = t1 - t0;
+  const tDec = tSpan < 6 ? 2 : 1;
   for (let i = 0; i <= 6; i++) {
-    const t = (i / 6) * tMax;
+    const t = t0 + (i / 6) * tSpan;
     const x = xOf(t);
     ctx.beginPath(); ctx.moveTo(x, mT); ctx.lineTo(x, mT + pH); ctx.stroke();
-    ctx.fillText(t.toFixed(1), x, mT + pH + 6);
+    ctx.fillText(t.toFixed(tDec), x, mT + pH + 6);
   }
 
   // axis titles
@@ -572,9 +584,18 @@ function drawViz() {
   ctx.fillText("Surface elevation (m)", 0, 0);
   ctx.restore();
 
-  // decimate for performance: at most ~1 plotted point per pixel
-  // (for short records every sample is plotted)
-  const stride = Math.max(1, Math.floor(N / Math.max(800, pW)));
+  // decimate for performance: at most ~1 plotted point per pixel within
+  // the visible window (for short windows every sample is plotted)
+  const nVis = i1 - i0 + 1;
+  const stride = Math.max(1, Math.floor(nVis / Math.max(800, pW)));
+  // dots grow a little when zoomed in enough to space them out
+  const dotR = nVis / stride < pW / 6 ? 2.6 : 1.7;
+
+  // clip drawing to the plot area
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(mL, mT, pW, pH);
+  ctx.clip();
 
   for (const p of probes) {
     const col = rec.cols[p];
@@ -585,7 +606,7 @@ function drawViz() {
     ctx.lineWidth = 0.8;
     ctx.beginPath();
     let first = true;
-    for (let i = 0; i < N; i += stride) {
+    for (let i = i0; i <= i1; i += stride) {
       const x = xOf(i * dt), y = yOf(col[i]);
       if (first) { ctx.moveTo(x, y); first = false; }
       else ctx.lineTo(x, y);
@@ -594,13 +615,14 @@ function drawViz() {
 
     // dot marker at each plotted data point
     ctx.fillStyle = color;
-    for (let i = 0; i < N; i += stride) {
+    for (let i = i0; i <= i1; i += stride) {
       const x = xOf(i * dt), y = yOf(col[i]);
       ctx.beginPath();
-      ctx.arc(x, y, 1.7, 0, 2 * Math.PI);
+      ctx.arc(x, y, dotR, 0, 2 * Math.PI);
       ctx.fill();
     }
   }
+  ctx.restore();
 
   // legend along the top
   ctx.textAlign = "left";
@@ -615,7 +637,29 @@ function drawViz() {
   }
 
   hint.textContent =
-    `${rec.name} — ${N} samples, ${tMax.toFixed(1)} s at ${fs} Hz`;
+    `${rec.name} — ${N} samples, ${tMax.toFixed(1)} s at ${fs} Hz` +
+    (vizView ? ` · zoom ${t0.toFixed(2)}–${t1.toFixed(2)} s` : "");
+}
+
+/* Zoom the visualization time axis by a factor about the window centre. */
+function vizZoom(factor) {
+  const rec = state.records.find((r) => String(r.id) === $("vizFile").value);
+  if (!rec || !rec.cols) return;
+  const fs = parseFloat($("fs").value) || 100;
+  const tMax = (rec.cols[0].length - 1) / fs;
+  let a = vizView ? vizView.t0 : 0;
+  let b = vizView ? vizView.t1 : tMax;
+  const c = (a + b) / 2;
+  let span = (b - a) * factor;
+  span = Math.min(span, tMax);
+  span = Math.max(span, Math.max(8 / fs, tMax * 0.002)); // floor on zoom-in
+  a = c - span / 2;
+  b = c + span / 2;
+  if (a < 0) { b -= a; a = 0; }
+  if (b > tMax) { a -= b - tMax; b = tMax; }
+  a = Math.max(0, a);
+  vizView = (b - a >= tMax - 1e-9) ? null : { t0: a, t1: b };
+  drawViz();
 }
 
 function updateSpacingReadout() {
@@ -761,7 +805,10 @@ function init() {
   );
 
   // visualization controls
-  $("vizFile").addEventListener("change", drawViz);
+  $("vizFile").addEventListener("change", () => { vizView = null; drawViz(); });
+  $("vizZoomIn").addEventListener("click", () => vizZoom(0.6));
+  $("vizZoomOut").addEventListener("click", () => vizZoom(1 / 0.6));
+  $("vizReset").addEventListener("click", () => { vizView = null; drawViz(); });
   document.querySelectorAll(".viz-probe").forEach((cb) =>
     cb.addEventListener("change", () => {
       $("vizAll").checked =

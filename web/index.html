@@ -199,7 +199,32 @@
             <label class="viz-all"><input type="checkbox" id="vizAll" checked /> All</label>
           </div>
         </div>
-        <canvas id="vizCanvas" height="380"></canvas>
+        <div class="viz-plot">
+          <div class="viz-zoom">
+            <button id="vizZoomIn" type="button" title="Zoom in" aria-label="Zoom in">
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                <circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="2" />
+                <line x1="15" y1="15" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <line x1="10" y1="7" x2="10" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <line x1="7" y1="10" x2="13" y2="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </button>
+            <button id="vizZoomOut" type="button" title="Zoom out" aria-label="Zoom out">
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                <circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="2" />
+                <line x1="15" y1="15" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <line x1="7" y1="10" x2="13" y2="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </button>
+            <button id="vizReset" type="button" title="Reset zoom" aria-label="Reset zoom">
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+          <canvas id="vizCanvas" height="380"></canvas>
+        </div>
         <p class="hint" id="vizHint">Load CSV files, then pick one to plot its wave-probe time series.</p>
       </div>
     </details>
