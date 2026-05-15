@@ -201,15 +201,6 @@
                 <option value="mm">mm</option>
               </select>
             </span>
-            <span class="viz-ctl" id="vizSmoothWrap">
-              <label for="vizSmooth">Smoothing</label>
-              <select id="vizSmooth">
-                <option value="1" selected>None</option>
-                <option value="5">Light</option>
-                <option value="11">Medium</option>
-                <option value="25">Strong</option>
-              </select>
-            </span>
           </div>
           <div class="viz-probes" id="vizProbes">
             <span class="muted">Probes:</span>
@@ -269,6 +260,11 @@
           <canvas id="vizCanvas" height="380"></canvas>
           <canvas id="vizOverlay" height="380"></canvas>
           <div id="vizTip" class="viz-tip"></div>
+        </div>
+        <div class="viz-smooth" id="vizSmoothWrap">
+          <label for="vizSmooth">Smoothing</label>
+          <input type="range" id="vizSmooth" min="1" max="51" step="2" value="1" />
+          <span class="viz-smooth-val" id="vizSmoothVal">off</span>
         </div>
         <p class="hint" id="vizHint">Load CSV files, then pick one to plot its wave-probe time series.</p>
       </div>

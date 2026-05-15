@@ -396,6 +396,26 @@ td.fallback { color: var(--warn); }
   max-width: 360px;
 }
 .viz-ctl { display: inline-flex; align-items: center; gap: 6px; }
+.viz-smooth {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  font-weight: 550;
+  color: var(--ink);
+}
+.viz-smooth input[type="range"] {
+  flex: 1;
+  max-width: 340px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.viz-smooth-val {
+  min-width: 64px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 .viz-tip {
   position: absolute;
   display: none;

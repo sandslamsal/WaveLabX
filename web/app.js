@@ -1316,7 +1316,11 @@ function init() {
     drawViz();
   });
   $("vizUnit").addEventListener("change", drawViz);
-  $("vizSmooth").addEventListener("change", drawViz);
+  $("vizSmooth").addEventListener("input", () => {
+    const w = vizSmoothWin();
+    $("vizSmoothVal").textContent = w <= 1 ? "off" : w + " bins";
+    drawViz();
+  });
   $("vizCanvas").addEventListener("mousemove", vizHover);
   $("vizCanvas").addEventListener("click", vizClick);
   $("vizCanvas").addEventListener("mouseleave", () => {
@@ -1383,7 +1387,7 @@ function applyVizType() {
   // spectral smoothing applies only to the spectrum plots
   if ($("vizSmoothWrap"))
     $("vizSmoothWrap").style.display =
-      t === "spectrum" || t === "power" ? "inline-flex" : "none";
+      t === "spectrum" || t === "power" ? "flex" : "none";
 }
 
 /* Show/hide regular-only settings and update the mode note + table headers. */
