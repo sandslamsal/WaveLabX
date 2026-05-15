@@ -461,6 +461,161 @@ function renderTable() {
       renderTable();
     });
   });
+
+  refreshVizFiles();
+}
+
+/* ---------------------------------------------------------------------------
+ * Visualization — wave-probe time-series plot for one file (canvas)
+ * ------------------------------------------------------------------------- */
+const VIZ_COLORS = ["#1f5fa6", "#c0392b", "#1f7a4d", "#b9591a", "#6a4ca8", "#0e8a8a"];
+
+/* Repopulate the file selector from the current records (selection kept). */
+function refreshVizFiles() {
+  const sel = $("vizFile");
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = "";
+  state.records.forEach((rec) => {
+    if (!rec.cols) return;
+    const o = document.createElement("option");
+    o.value = String(rec.id);
+    o.textContent = rec.name;
+    sel.appendChild(o);
+  });
+  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+  if ($("vizBox") && $("vizBox").open) drawViz();
+}
+
+/* Draw the selected file's selected probe channels onto the canvas. */
+function drawViz() {
+  const canvas = $("vizCanvas");
+  if (!canvas) return;
+  const hint = $("vizHint");
+  const sel = $("vizFile");
+  const rec = state.records.find((r) => String(r.id) === sel.value);
+
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 1000;
+  const cssH = 380;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  if (!rec || !rec.cols) {
+    hint.textContent = "No file selected — load CSV files first.";
+    return;
+  }
+  const probes = [...document.querySelectorAll(".viz-probe")]
+    .filter((c) => c.checked)
+    .map((c) => +c.value);
+  if (!probes.length) {
+    hint.textContent = "Select at least one probe to plot.";
+    return;
+  }
+
+  const fs = parseFloat($("fs").value) || 100;
+  const N = rec.cols[0].length;
+  const dt = 1 / fs;
+  const tMax = (N - 1) * dt;
+
+  const mL = 60, mR = 14, mT = 26, mB = 34;
+  const pW = cssW - mL - mR, pH = cssH - mT - mB;
+
+  // y-range across the selected probes
+  let yMin = Infinity, yMax = -Infinity;
+  for (const p of probes) {
+    const col = rec.cols[p];
+    for (let i = 0; i < N; i++) {
+      if (col[i] < yMin) yMin = col[i];
+      if (col[i] > yMax) yMax = col[i];
+    }
+  }
+  if (!isFinite(yMin)) { hint.textContent = "No data in this file."; return; }
+  if (yMin === yMax) { yMin -= 1; yMax += 1; }
+  const pad = (yMax - yMin) * 0.06;
+  yMin -= pad; yMax += pad;
+
+  const xOf = (t) => mL + (t / tMax) * pW;
+  const yOf = (v) => mT + pH - ((v - yMin) / (yMax - yMin)) * pH;
+
+  // grid + axis ticks
+  ctx.strokeStyle = "#e2e7ee";
+  ctx.lineWidth = 1;
+  ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillStyle = "#6b7787";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 5; i++) {
+    const v = yMin + (i / 5) * (yMax - yMin);
+    const y = yOf(v);
+    ctx.beginPath(); ctx.moveTo(mL, y); ctx.lineTo(mL + pW, y); ctx.stroke();
+    ctx.fillText(v.toFixed(3), mL - 6, y);
+  }
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (let i = 0; i <= 6; i++) {
+    const t = (i / 6) * tMax;
+    const x = xOf(t);
+    ctx.beginPath(); ctx.moveTo(x, mT); ctx.lineTo(x, mT + pH); ctx.stroke();
+    ctx.fillText(t.toFixed(1), x, mT + pH + 6);
+  }
+
+  // axis titles
+  ctx.fillStyle = "#1a2433";
+  ctx.fillText("Time (s)", mL + pW / 2, cssH - 13);
+  ctx.save();
+  ctx.translate(13, mT + pH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText("Surface elevation (m)", 0, 0);
+  ctx.restore();
+
+  // decimate for performance: at most ~1 plotted point per pixel
+  // (for short records every sample is plotted)
+  const stride = Math.max(1, Math.floor(N / Math.max(800, pW)));
+
+  for (const p of probes) {
+    const col = rec.cols[p];
+    const color = VIZ_COLORS[p % VIZ_COLORS.length];
+
+    // thin connecting line
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    let first = true;
+    for (let i = 0; i < N; i += stride) {
+      const x = xOf(i * dt), y = yOf(col[i]);
+      if (first) { ctx.moveTo(x, y); first = false; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // dot marker at each plotted data point
+    ctx.fillStyle = color;
+    for (let i = 0; i < N; i += stride) {
+      const x = xOf(i * dt), y = yOf(col[i]);
+      ctx.beginPath();
+      ctx.arc(x, y, 1.7, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+  }
+
+  // legend along the top
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  let lx = mL;
+  for (const p of probes) {
+    ctx.fillStyle = VIZ_COLORS[p % VIZ_COLORS.length];
+    ctx.fillRect(lx, mT - 15, 14, 3);
+    ctx.fillStyle = "#1a2433";
+    ctx.fillText("Probe " + (p + 1), lx + 18, mT - 14);
+    lx += 72;
+  }
+
+  hint.textContent =
+    `${rec.name} — ${N} samples, ${tMax.toFixed(1)} s at ${fs} Hz`;
 }
 
 function updateSpacingReadout() {
@@ -604,6 +759,27 @@ function init() {
       if (state.records.length) analyzeAll(true);
     })
   );
+
+  // visualization controls
+  $("vizFile").addEventListener("change", drawViz);
+  document.querySelectorAll(".viz-probe").forEach((cb) =>
+    cb.addEventListener("change", () => {
+      $("vizAll").checked =
+        [...document.querySelectorAll(".viz-probe")].every((c) => c.checked);
+      drawViz();
+    })
+  );
+  $("vizAll").addEventListener("change", () => {
+    const on = $("vizAll").checked;
+    document.querySelectorAll(".viz-probe").forEach((c) => { c.checked = on; });
+    drawViz();
+  });
+  $("vizBox").addEventListener("toggle", () => {
+    if ($("vizBox").open) drawViz();
+  });
+  window.addEventListener("resize", () => {
+    if ($("vizBox").open) drawViz();
+  });
 
   applyMode();
   updateSpacingReadout();

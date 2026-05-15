@@ -179,6 +179,31 @@
       <input type="file" id="fileInput" accept=".csv" multiple hidden />
     </div>
 
+    <!-- ============ VISUALIZATION ============ -->
+    <details class="viz-box" id="vizBox">
+      <summary>Visualization</summary>
+      <div class="viz-body">
+        <div class="viz-controls">
+          <div class="viz-file">
+            <label for="vizFile">File</label>
+            <select id="vizFile"></select>
+          </div>
+          <div class="viz-probes" id="vizProbes">
+            <span class="muted">Probes:</span>
+            <label><input type="checkbox" class="viz-probe" value="0" checked /> 1</label>
+            <label><input type="checkbox" class="viz-probe" value="1" checked /> 2</label>
+            <label><input type="checkbox" class="viz-probe" value="2" checked /> 3</label>
+            <label><input type="checkbox" class="viz-probe" value="3" checked /> 4</label>
+            <label><input type="checkbox" class="viz-probe" value="4" checked /> 5</label>
+            <label><input type="checkbox" class="viz-probe" value="5" checked /> 6</label>
+            <label class="viz-all"><input type="checkbox" id="vizAll" checked /> All</label>
+          </div>
+        </div>
+        <canvas id="vizCanvas" height="380"></canvas>
+        <p class="hint" id="vizHint">Load CSV files, then pick one to plot its wave-probe time series.</p>
+      </div>
+    </details>
+
     <!-- ============ RESULTS ============ -->
     <section class="card compact" id="resultsCard" hidden>
       <div class="results-head">
