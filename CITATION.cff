@@ -8,6 +8,7 @@ authors:
     given-names: Landolf
     orcid: "https://orcid.org/0000-0001-7550-800X"
 repository-code: https://github.com/sandslamsal/WaveLabX
+doi: 10.5281/zenodo.20217994
 license: MIT
 version: 0.2.0
 date-released: 2026-05-15

@@ -1,6 +1,6 @@
 # WaveLabX
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18049227.svg)](https://doi.org/10.5281/zenodo.18049227)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20217994.svg)](https://doi.org/10.5281/zenodo.20217994)
 
 WaveLabX is an open-source Python toolkit for laboratory wave-probe analysis, providing reproducible wave statistics and incident–reflected decomposition.
 
@@ -61,7 +61,7 @@ WaveLabX is released under the MIT License (see `LICENSE`).
 
 If you use WaveLabX in your research, please cite the archived software release:
 
-> Lamsal, S., & Rhode-Barbarigos, L. (2026). *WaveLabX* (v0.2.0) [Software]. Zenodo. [https://doi.org/10.5281/zenodo.18049227](https://doi.org/10.5281/zenodo.18049227)
+> Lamsal, S., & Rhode-Barbarigos, L. (2026). *WaveLabX* (v0.2.0) [Software]. Zenodo. [https://doi.org/10.5281/zenodo.20217994](https://doi.org/10.5281/zenodo.20217994)
 
 BibTeX:
 
@@ -71,7 +71,7 @@ BibTeX:
   title     = {WaveLabX},
   version   = {0.2.0},
   year      = {2026},
-  doi       = {10.5281/zenodo.18049227},
+  doi       = {10.5281/zenodo.20217994},
   url       = {https://github.com/sandslamsal/WaveLabX},
   publisher = {Zenodo}
 }
