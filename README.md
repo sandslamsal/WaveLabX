@@ -61,7 +61,7 @@ WaveLabX is released under the MIT License (see `LICENSE`).
 
 If you use WaveLabX in your research, please cite the archived software release:
 
-> Lamsal, S., & Rhode-Barbarigos, L. (2025). *WaveLabX* (v0.1.0) [Software]. Zenodo. [https://doi.org/10.5281/zenodo.18049227](https://doi.org/10.5281/zenodo.18049227)
+> Lamsal, S., & Rhode-Barbarigos, L. (2026). *WaveLabX* (v0.2.0) [Software]. Zenodo. [https://doi.org/10.5281/zenodo.18049227](https://doi.org/10.5281/zenodo.18049227)
 
 BibTeX:
 
@@ -69,8 +69,8 @@ BibTeX:
 @software{wavelabx,
   author    = {Lamsal, Sandesh and Rhode-Barbarigos, Landolf},
   title     = {WaveLabX},
-  version   = {0.1.0},
-  year      = {2025},
+  version   = {0.2.0},
+  year      = {2026},
   doi       = {10.5281/zenodo.18049227},
   url       = {https://github.com/sandslamsal/WaveLabX},
   publisher = {Zenodo}
