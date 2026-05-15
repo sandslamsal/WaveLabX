@@ -476,7 +476,8 @@ let vizYView = null;  // visible y-window {y0,y1}; null = autoscale
 let vizMode = "none"; // active drag tool: "none" | "box" | "pan"
 let vizDrag = null;   // in-progress drag state
 let vizGeom = null;   // geometry of the last draw, for pixel<->data inversion
-let vizSpecCache = null; // { key, a1, a2 } — cached spectral analysis
+let vizSpecCache = null; // { key, a1, a2 } — cached three-probe spectral analysis
+let vizPowCache = null;  // { key, spectra } — cached per-probe power spectra
 
 const vizType = () => ($("vizType") ? $("vizType").value : "series");
 
@@ -586,7 +587,58 @@ function buildSpectrumPlot(rec) {
   };
 }
 
-/* Draw the active plot (time series or energy spectrum). */
+/* Build a power-spectrum plot: the auto-spectrum (power spectral
+ * density) of each selected wave probe. */
+function buildPowerPlot(rec) {
+  const SP = typeof WaveLabXSpectral !== "undefined" ? WaveLabXSpectral
+    : typeof window !== "undefined" ? window.WaveLabXSpectral : null;
+  if (!SP) return { empty: "Spectral module not loaded." };
+
+  const probes = [...document.querySelectorAll(".viz-probe")]
+    .filter((c) => c.checked)
+    .map((c) => +c.value);
+  if (!probes.length) return { empty: "Select at least one probe to plot." };
+
+  const fs = parseFloat($("fs").value) || 100;
+  const key = `${rec.id}|${fs}`;
+  if (!vizPowCache || vizPowCache.key !== key) {
+    vizPowCache = { key, spectra: rec.cols.map((c) => SP.autoSpectrum(c, fs)) };
+  }
+  const spectra = vizPowCache.spectra;
+
+  // peak frequency across the selected probes — used to frame the
+  // energetic band so the default view is not mostly flat noise
+  let fPeak = 0;
+  for (const p of probes) {
+    const sp = spectra[p];
+    let pk = -1, pkF = 0;
+    for (let i = 0; i < sp.S.length; i++)
+      if (sp.S[i] > pk) { pk = sp.S[i]; pkF = sp.f[i]; }
+    if (pkF > fPeak) fPeak = pkF;
+  }
+  const fCap = Math.min(fs / 2, Math.max(2, fPeak * 8));
+
+  const series = probes.map((p) => {
+    const sp = spectra[p];
+    let hi = sp.f.length - 1;
+    while (hi > 0 && sp.f[hi] > fCap) hi--;
+    return {
+      label: "Probe " + (p + 1),
+      color: VIZ_COLORS[p % VIZ_COLORS.length],
+      x: sp.f.subarray(0, hi + 1),
+      y: sp.S.subarray(0, hi + 1),
+    };
+  });
+  return {
+    xLabel: "Frequency (Hz)",
+    yLabel: "Spectral density S(f)",
+    yUnit: "m²·s",
+    xMin: 0, xMax: fCap, series,
+    info: `${rec.name} — power spectral density per probe`,
+  };
+}
+
+/* Draw the active plot (time series, energy spectrum, or power spectrum). */
 function drawViz() {
   const canvas = $("vizCanvas");
   if (!canvas) return;
@@ -609,7 +661,10 @@ function drawViz() {
   }
   let plot;
   try {
-    plot = vizType() === "spectrum" ? buildSpectrumPlot(rec) : buildSeriesPlot(rec);
+    const t = vizType();
+    plot = t === "spectrum" ? buildSpectrumPlot(rec)
+      : t === "power" ? buildPowerPlot(rec)
+        : buildSeriesPlot(rec);
   } catch (e) {
     vizGeom = null;
     hint.textContent = "Plot failed: " + e.message;

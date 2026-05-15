@@ -275,10 +275,43 @@ function threeProbeArray(cols, fs, h, pos) {
   };
 }
 
+/* ---------------------------------------------------------------------------
+ * Auto-spectrum (power spectral density) of one gauge record.
+ * Same one-sided estimator as the per-gauge Sn in three_probe_array.
+ *   col : number[]   single gauge time series
+ *   fs  : sampling frequency [Hz]
+ * Returns { f, S } over frequency bins 1 .. N/2-1.
+ * ------------------------------------------------------------------------- */
+function autoSpectrum(col, fs) {
+  const N = col.length;
+  const dt = 1.0 / fs;
+  const half = N >> 1;
+  const nf = half - 1;
+  if (nf < 2) throw new Error("record too short for a power spectrum");
+
+  // detrend (remove mean)
+  let mean = 0;
+  for (let n = 0; n < N; n++) mean += col[n];
+  mean /= N;
+  const z = new Float64Array(N);
+  for (let n = 0; n < N; n++) z[n] = col[n] - mean;
+
+  const F = dftReal(z);
+  const df = fs / N;
+  const f = new Float64Array(nf);
+  const S = new Float64Array(nf);
+  for (let i = 0; i < nf; i++) {
+    const re = F.re[i + 1], im = F.im[i + 1];
+    f[i] = df * (i + 1);
+    S[i] = (dt * 2 * (re * re + im * im)) / N;
+  }
+  return { f, S };
+}
+
 /* exports for browser + Node */
 if (typeof window !== "undefined") {
-  window.WaveLabXSpectral = { threeProbeArray, spComputeWavelength, dftReal };
+  window.WaveLabXSpectral = { threeProbeArray, autoSpectrum, spComputeWavelength, dftReal };
 }
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { threeProbeArray, spComputeWavelength, dftReal, fftPow2 };
+  module.exports = { threeProbeArray, autoSpectrum, spComputeWavelength, dftReal, fftPow2 };
 }
