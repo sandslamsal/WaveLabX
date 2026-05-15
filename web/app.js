@@ -528,10 +528,15 @@ function buildSeriesPlot(rec) {
     x,
     y: rec.cols[p],
   }));
+  // explicit display unit (m / cm / mm) — no automatic ×10^k scaling
+  const unit = $("vizUnit") ? $("vizUnit").value : "cm";
+  const yMul = unit === "mm" ? 1000 : unit === "cm" ? 100 : 1;
   return {
     xLabel: "Time (s)",
     yLabel: "Surface elevation",
-    yUnit: "m",
+    yUnit: unit,
+    yMul,
+    yFixed: true,
     xMin: 0,
     xMax: (N - 1) * dt,
     series,
@@ -718,14 +723,17 @@ function renderPlot(ctx, cssW, cssH, plot) {
   const xOf = (t) => mL + ((t - x0) / (x1 - x0)) * pW;
   const yOf = (v) => mT + pH - ((v - yMin) / (yMax - yMin)) * pH;
   const xFmt = fmtAxis(x1 - x0);
-  // factor the y values into a "×10^k" label multiplier so the tick
-  // numbers stay in a readable mantissa range (applies to both plots)
-  let yScaleExp = 0;
-  const yMaxAbs = Math.max(Math.abs(yMin), Math.abs(yMax));
-  if (yMaxAbs > 0) {
-    yScaleExp = -Math.floor(Math.log10(yMaxAbs));
+  // y-axis display multiplier:
+  //  - fixed-unit plots (time series) use an explicit m/cm/mm factor
+  //  - other plots auto-factor into a "×10^k" label multiplier
+  let yScaleExp = 0, yScale;
+  if (plot.yFixed) {
+    yScale = plot.yMul || 1;
+  } else {
+    const yMaxAbs = Math.max(Math.abs(yMin), Math.abs(yMax));
+    if (yMaxAbs > 0) yScaleExp = -Math.floor(Math.log10(yMaxAbs));
+    yScale = Math.pow(10, yScaleExp);
   }
-  const yScale = Math.pow(10, yScaleExp);
   const yFmt = fmtAxis((yMax - yMin) * yScale);
 
   // grid + ticks
@@ -1111,6 +1119,7 @@ function init() {
     applyVizType();
     drawViz();
   });
+  $("vizUnit").addEventListener("change", drawViz);
   $("vizZoomIn").addEventListener("click", () => vizZoom(0.6));
   $("vizZoomOut").addEventListener("click", () => vizZoom(1 / 0.6));
   $("vizBoxZoom").addEventListener("click", () => vizSetMode("box"));
@@ -1160,9 +1169,13 @@ function init() {
  * (display is set inline because the .viz-probes class would otherwise
  * override the [hidden] attribute.) */
 function applyVizType() {
-  const spec = vizType() === "spectrum";
+  const t = vizType();
+  const spec = t === "spectrum";
   if ($("vizProbes")) $("vizProbes").style.display = spec ? "none" : "flex";
   if ($("vizCurves")) $("vizCurves").style.display = spec ? "flex" : "none";
+  // the m/cm/mm unit selector applies only to the time-series plot
+  if ($("vizUnitWrap"))
+    $("vizUnitWrap").style.display = t === "series" ? "inline-flex" : "none";
 }
 
 /* Show/hide regular-only settings and update the mode note + table headers. */

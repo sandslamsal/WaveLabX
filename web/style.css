@@ -326,6 +326,7 @@ footer {
   background: #fff;
   max-width: 360px;
 }
+.viz-ctl { display: inline-flex; align-items: center; gap: 6px; }
 .viz-probes {
   display: flex;
   align-items: center;
