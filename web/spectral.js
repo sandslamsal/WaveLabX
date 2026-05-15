@@ -246,6 +246,7 @@ function threeProbeArray(cols, fs, h, pos) {
   // pair-averaged spectra, integrated energy
   let Ei = 0, Er = 0, mo = 0;
   let peakS = -1, peakIdx = gMin;
+  const specF = [], specSi = [], specSr = [];
   for (let i = gMin; i <= gMax; i++) {
     const ai = nanmean3(Ainc[0][i], Ainc[1][i], Ainc[2][i]);
     const bi = nanmean3(Binc[0][i], Binc[1][i], Binc[2][i]);
@@ -253,6 +254,7 @@ function threeProbeArray(cols, fs, h, pos) {
     const br = nanmean3(Bref[0][i], Bref[1][i], Bref[2][i]);
     const Si = (ai * ai + bi * bi) / (2 * df);
     const Sr = (ar * ar + br * br) / (2 * df);
+    specF.push(f[i]); specSi.push(Si); specSr.push(Sr);
     if (!Number.isNaN(Si)) { Ei += Si; if (Si > peakS) { peakS = Si; peakIdx = i; } }
     if (!Number.isNaN(Sr)) Er += Sr;
     mo += Sn[0][i];
@@ -269,6 +271,7 @@ function threeProbeArray(cols, fs, h, pos) {
     Hi, Hr, Kr, Htot, retained,
     fp, Tp: fp > 0 ? 1 / fp : NaN,
     validRange: [gMin, gMax],
+    spectra: { f: specF, Si: specSi, Sr: specSr },
   };
 }
 

@@ -187,6 +187,11 @@
           <div class="viz-file">
             <label for="vizFile">File</label>
             <select id="vizFile"></select>
+            <label for="vizType">Plot</label>
+            <select id="vizType">
+              <option value="series">Time Series</option>
+              <option value="spectrum">Energy Spectrum</option>
+            </select>
           </div>
           <div class="viz-probes" id="vizProbes">
             <span class="muted">Probes:</span>
@@ -197,6 +202,13 @@
             <label><input type="checkbox" class="viz-probe" value="4" checked /> 5</label>
             <label><input type="checkbox" class="viz-probe" value="5" checked /> 6</label>
             <label class="viz-all"><input type="checkbox" id="vizAll" checked /> All</label>
+          </div>
+          <div class="viz-probes" id="vizCurves" hidden>
+            <span class="muted">Show:</span>
+            <label><input type="checkbox" class="viz-curve" value="inc" checked /> Incident</label>
+            <label><input type="checkbox" class="viz-curve" value="ref" checked /> Reflected</label>
+            <label><input type="checkbox" class="viz-curve" value="tra" checked /> Transmitted</label>
+            <label class="viz-all"><input type="checkbox" id="vizCurveAll" checked /> All</label>
           </div>
         </div>
         <div class="viz-plot">

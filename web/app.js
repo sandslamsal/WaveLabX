@@ -465,15 +465,20 @@ function renderTable() {
   refreshVizFiles();
 }
 
-/* ---------------------------------------------------------------------------
- * Visualization — wave-probe time-series plot for one file (canvas)
- * ------------------------------------------------------------------------- */
+/* ===========================================================================
+ * VISUALIZATION — time-series and energy-spectrum plots (canvas)
+ * ========================================================================= */
 const VIZ_COLORS = ["#1f5fa6", "#c0392b", "#1f7a4d", "#b9591a", "#6a4ca8", "#0e8a8a"];
-let vizView = null;   // visible time window {t0,t1}; null = full record
-let vizYView = null;  // visible elevation window {y0,y1}; null = autoscale
+const VIZ_SPEC = { inc: "#1f5fa6", ref: "#c0392b", tra: "#1f7a4d" };
+
+let vizView = null;   // visible x-window {x0,x1}; null = full range
+let vizYView = null;  // visible y-window {y0,y1}; null = autoscale
 let vizMode = "none"; // active drag tool: "none" | "box" | "pan"
 let vizDrag = null;   // in-progress drag state
 let vizGeom = null;   // geometry of the last draw, for pixel<->data inversion
+let vizSpecCache = null; // { key, a1, a2 } — cached spectral analysis
+
+const vizType = () => ($("vizType") ? $("vizType").value : "series");
 
 /* Repopulate the file selector from the current records (selection kept). */
 function refreshVizFiles() {
@@ -492,13 +497,99 @@ function refreshVizFiles() {
   if ($("vizBox") && $("vizBox").open) drawViz();
 }
 
-/* Draw the selected file's selected probe channels onto the canvas. */
+/* Adaptive numeric format for an axis, given the range it spans. */
+function fmtAxis(range) {
+  const a = Math.abs(range);
+  if (a >= 200) return (v) => v.toFixed(0);
+  if (a >= 20) return (v) => v.toFixed(1);
+  if (a >= 2) return (v) => v.toFixed(2);
+  if (a >= 0.2) return (v) => v.toFixed(3);
+  if (a >= 0.002) return (v) => v.toFixed(5);
+  return (v) => v.toExponential(1);
+}
+
+/* Build a time-series plot object for the time-series mode. */
+function buildSeriesPlot(rec) {
+  const probes = [...document.querySelectorAll(".viz-probe")]
+    .filter((c) => c.checked)
+    .map((c) => +c.value);
+  if (!probes.length) return { empty: "Select at least one probe to plot." };
+
+  const fs = parseFloat($("fs").value) || 100;
+  const N = rec.cols[0].length;
+  const dt = 1 / fs;
+  const x = new Float64Array(N);
+  for (let i = 0; i < N; i++) x[i] = i * dt;
+
+  const series = probes.map((p) => ({
+    label: "Probe " + (p + 1),
+    color: VIZ_COLORS[p % VIZ_COLORS.length],
+    x,
+    y: rec.cols[p],
+  }));
+  return {
+    xLabel: "Time (s)",
+    yLabel: "Surface elevation (m)",
+    xMin: 0,
+    xMax: (N - 1) * dt,
+    series,
+    info: `${rec.name} — ${N} samples, ${((N - 1) * dt).toFixed(1)} s at ${fs} Hz`,
+  };
+}
+
+/* Build an energy-spectrum plot object: incident/reflected from probes
+ * 1-3, transmitted from probes 4-6, via the WaveLabX spectral method. */
+function buildSpectrumPlot(rec) {
+  const SP = typeof WaveLabXSpectral !== "undefined" ? WaveLabXSpectral
+    : typeof window !== "undefined" ? window.WaveLabXSpectral : null;
+  if (!SP) return { empty: "Spectral module not loaded." };
+  if (!(rec.depth > 0)) return { empty: "Set a water depth for this file first." };
+
+  const fs = parseFloat($("fs").value) || 100;
+  const s = getSettings();
+  const key = [rec.id, fs, rec.depth, s.pos1.join(","), s.pos2.join(",")].join("|");
+  if (!vizSpecCache || vizSpecCache.key !== key) {
+    vizSpecCache = {
+      key,
+      a1: SP.threeProbeArray(rec.cols.slice(0, 3), fs, rec.depth, s.pos1),
+      a2: SP.threeProbeArray(rec.cols.slice(3, 6), fs, rec.depth, s.pos2),
+    };
+  }
+  const { a1, a2 } = vizSpecCache;
+
+  const want = [...document.querySelectorAll(".viz-curve")]
+    .filter((c) => c.checked)
+    .map((c) => c.value);
+  if (!want.length) return { empty: "Select at least one spectrum to plot." };
+
+  const series = [];
+  if (want.includes("inc"))
+    series.push({ label: "Incident", color: VIZ_SPEC.inc, x: a1.spectra.f, y: a1.spectra.Si });
+  if (want.includes("ref"))
+    series.push({ label: "Reflected", color: VIZ_SPEC.ref, x: a1.spectra.f, y: a1.spectra.Sr });
+  if (want.includes("tra"))
+    series.push({ label: "Transmitted", color: VIZ_SPEC.tra, x: a2.spectra.f, y: a2.spectra.Si });
+
+  let xMin = Infinity, xMax = -Infinity;
+  for (const ser of series)
+    for (const xv of ser.x) { if (xv < xMin) xMin = xv; if (xv > xMax) xMax = xv; }
+  if (!isFinite(xMin)) return { empty: "No spectral data in the valid frequency band." };
+
+  return {
+    xLabel: "Frequency (Hz)",
+    yLabel: "Spectral density S(f) (m²·s)",
+    xMin, xMax, series,
+    info: `${rec.name} — incident/reflected from probes 1–3, ` +
+      `transmitted from probes 4–6`,
+  };
+}
+
+/* Draw the active plot (time series or energy spectrum). */
 function drawViz() {
   const canvas = $("vizCanvas");
   if (!canvas) return;
   const hint = $("vizHint");
-  const sel = $("vizFile");
-  const rec = state.records.find((r) => String(r.id) === sel.value);
+  const rec = state.records.find((r) => String(r.id) === $("vizFile").value);
 
   const dpr = window.devicePixelRatio || 1;
   const cssW = canvas.clientWidth || 1000;
@@ -510,59 +601,68 @@ function drawViz() {
   ctx.clearRect(0, 0, cssW, cssH);
 
   if (!rec || !rec.cols) {
+    vizGeom = null;
     hint.textContent = "No file selected — load CSV files first.";
     return;
   }
-  const probes = [...document.querySelectorAll(".viz-probe")]
-    .filter((c) => c.checked)
-    .map((c) => +c.value);
-  if (!probes.length) {
-    hint.textContent = "Select at least one probe to plot.";
+  let plot;
+  try {
+    plot = vizType() === "spectrum" ? buildSpectrumPlot(rec) : buildSeriesPlot(rec);
+  } catch (e) {
+    vizGeom = null;
+    hint.textContent = "Plot failed: " + e.message;
     return;
   }
-
-  const fs = parseFloat($("fs").value) || 100;
-  const N = rec.cols[0].length;
-  const dt = 1 / fs;
-  const tMax = (N - 1) * dt;
-
-  // visible time window (zoom state); null = full record
-  let t0 = 0, t1 = tMax;
-  if (vizView) {
-    t0 = Math.max(0, Math.min(vizView.t0, tMax));
-    t1 = Math.max(t0 + dt, Math.min(vizView.t1, tMax));
+  if (!plot || plot.empty || !plot.series || !plot.series.length) {
+    vizGeom = null;
+    hint.textContent = plot && plot.empty ? plot.empty : "Nothing to plot.";
+    return;
   }
-  const i0 = Math.max(0, Math.floor(t0 / dt));
-  const i1 = Math.min(N - 1, Math.ceil(t1 / dt));
+  renderPlot(ctx, cssW, cssH, plot);
+}
 
-  const mL = 60, mR = 14, mT = 26, mB = 34;
+/* Shared renderer: axes, gridlines, line+dot series, legend, zoom window. */
+function renderPlot(ctx, cssW, cssH, plot) {
+  const mL = 62, mR = 14, mT = 26, mB = 34;
   const pW = cssW - mL - mR, pH = cssH - mT - mB;
 
-  // y-range: explicit window if box-zoomed, otherwise autoscale to the
-  // selected probes within the visible time window
+  // visible x-window
+  let x0 = plot.xMin, x1 = plot.xMax;
+  if (x1 <= x0) x1 = x0 + 1;
+  const xFull = x1 - x0;
+  if (vizView) {
+    x0 = Math.max(plot.xMin, Math.min(vizView.x0, plot.xMax));
+    x1 = Math.min(plot.xMax, Math.max(vizView.x1, x0 + xFull * 1e-4));
+  }
+
+  // visible y-window: explicit if box-zoomed, else autoscale within x-window
   let yMin, yMax;
   if (vizYView) {
-    yMin = vizYView.y0;
-    yMax = vizYView.y1;
+    yMin = vizYView.y0; yMax = vizYView.y1;
   } else {
     yMin = Infinity; yMax = -Infinity;
-    for (const p of probes) {
-      const col = rec.cols[p];
-      for (let i = i0; i <= i1; i++) {
-        if (col[i] < yMin) yMin = col[i];
-        if (col[i] > yMax) yMax = col[i];
+    for (const ser of plot.series) {
+      const n = ser.y.length;
+      for (let i = 0; i < n; i++) {
+        const xv = ser.x[i];
+        if (xv < x0 || xv > x1) continue;
+        const yv = ser.y[i];
+        if (Number.isNaN(yv)) continue;
+        if (yv < yMin) yMin = yv;
+        if (yv > yMax) yMax = yv;
       }
     }
-    if (!isFinite(yMin)) { hint.textContent = "No data in this file."; return; }
+    if (!isFinite(yMin)) { yMin = 0; yMax = 1; }
     if (yMin === yMax) { yMin -= 1; yMax += 1; }
     const pad = (yMax - yMin) * 0.06;
     yMin -= pad; yMax += pad;
   }
 
-  const xOf = (t) => mL + ((t - t0) / (t1 - t0)) * pW;
+  const xOf = (t) => mL + ((t - x0) / (x1 - x0)) * pW;
   const yOf = (v) => mT + pH - ((v - yMin) / (yMax - yMin)) * pH;
+  const xFmt = fmtAxis(x1 - x0), yFmt = fmtAxis(yMax - yMin);
 
-  // grid + axis ticks
+  // grid + ticks
   ctx.strokeStyle = "#e2e7ee";
   ctx.lineWidth = 1;
   ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
@@ -573,63 +673,62 @@ function drawViz() {
     const v = yMin + (i / 5) * (yMax - yMin);
     const y = yOf(v);
     ctx.beginPath(); ctx.moveTo(mL, y); ctx.lineTo(mL + pW, y); ctx.stroke();
-    ctx.fillText(v.toFixed(3), mL - 6, y);
+    ctx.fillText(yFmt(v), mL - 6, y);
   }
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  const tSpan = t1 - t0;
-  const tDec = tSpan < 6 ? 2 : 1;
   for (let i = 0; i <= 6; i++) {
-    const t = t0 + (i / 6) * tSpan;
+    const t = x0 + (i / 6) * (x1 - x0);
     const x = xOf(t);
     ctx.beginPath(); ctx.moveTo(x, mT); ctx.lineTo(x, mT + pH); ctx.stroke();
-    ctx.fillText(t.toFixed(tDec), x, mT + pH + 6);
+    ctx.fillText(xFmt(t), x, mT + pH + 6);
   }
 
   // axis titles
   ctx.fillStyle = "#1a2433";
-  ctx.fillText("Time (s)", mL + pW / 2, cssH - 13);
+  ctx.fillText(plot.xLabel, mL + pW / 2, cssH - 13);
   ctx.save();
   ctx.translate(13, mT + pH / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillText("Surface elevation (m)", 0, 0);
+  ctx.fillText(plot.yLabel, 0, 0);
   ctx.restore();
 
-  // decimate for performance: at most ~1 plotted point per pixel within
-  // the visible window (for short windows every sample is plotted)
-  const nVis = i1 - i0 + 1;
-  const stride = Math.max(1, Math.floor(nVis / Math.max(800, pW)));
-  // dots grow a little when zoomed in enough to space them out
-  const dotR = nVis / stride < pW / 6 ? 2.6 : 1.7;
-
-  // clip drawing to the plot area
+  // series — line + dot at each plotted point, clipped to the plot area
   ctx.save();
   ctx.beginPath();
   ctx.rect(mL, mT, pW, pH);
   ctx.clip();
+  for (const ser of plot.series) {
+    const n = ser.y.length;
+    let lo = 0, hi = n - 1;            // visible index range (x ascending)
+    while (lo < n && ser.x[lo] < x0) lo++;
+    while (hi >= 0 && ser.x[hi] > x1) hi--;
+    lo = Math.max(0, lo - 1);
+    hi = Math.min(n - 1, hi + 1);
+    if (hi < lo) continue;
+    const nVis = hi - lo + 1;
+    const stride = Math.max(1, Math.floor(nVis / Math.max(800, pW)));
+    const dotR = nVis / stride < pW / 6 ? 2.6 : 1.7;
 
-  for (const p of probes) {
-    const col = rec.cols[p];
-    const color = VIZ_COLORS[p % VIZ_COLORS.length];
-
-    // thin connecting line
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = ser.color;
+    ctx.lineWidth = 0.9;
     ctx.beginPath();
     let first = true;
-    for (let i = i0; i <= i1; i += stride) {
-      const x = xOf(i * dt), y = yOf(col[i]);
+    for (let i = lo; i <= hi; i += stride) {
+      const yv = ser.y[i];
+      if (Number.isNaN(yv)) { first = true; continue; }
+      const x = xOf(ser.x[i]), y = yOf(yv);
       if (first) { ctx.moveTo(x, y); first = false; }
       else ctx.lineTo(x, y);
     }
     ctx.stroke();
 
-    // dot marker at each plotted data point
-    ctx.fillStyle = color;
-    for (let i = i0; i <= i1; i += stride) {
-      const x = xOf(i * dt), y = yOf(col[i]);
+    ctx.fillStyle = ser.color;
+    for (let i = lo; i <= hi; i += stride) {
+      const yv = ser.y[i];
+      if (Number.isNaN(yv)) continue;
       ctx.beginPath();
-      ctx.arc(x, y, dotR, 0, 2 * Math.PI);
+      ctx.arc(xOf(ser.x[i]), yOf(yv), dotR, 0, 2 * Math.PI);
       ctx.fill();
     }
   }
@@ -639,16 +738,17 @@ function drawViz() {
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   let lx = mL;
-  for (const p of probes) {
-    ctx.fillStyle = VIZ_COLORS[p % VIZ_COLORS.length];
+  for (const ser of plot.series) {
+    ctx.fillStyle = ser.color;
     ctx.fillRect(lx, mT - 15, 14, 3);
     ctx.fillStyle = "#1a2433";
-    ctx.fillText("Probe " + (p + 1), lx + 18, mT - 14);
-    lx += 72;
+    ctx.fillText(ser.label, lx + 18, mT - 14);
+    lx += ctx.measureText(ser.label).width + 32;
   }
 
-  // store geometry for pixel<->data inversion by the drag tools
-  vizGeom = { mL, mT, pW, pH, t0, t1, yMin, yMax };
+  // geometry for the drag tools
+  vizGeom = { mL, mT, pW, pH, vx0: x0, vx1: x1, vy0: yMin, vy1: yMax,
+              xMin: plot.xMin, xMax: plot.xMax };
 
   // rubber-band rectangle while box-zooming
   if (vizDrag && vizDrag.mode === "box") {
@@ -665,18 +765,11 @@ function drawViz() {
     ctx.setLineDash([]);
   }
 
-  hint.textContent =
-    `${rec.name} — ${N} samples, ${tMax.toFixed(1)} s at ${fs} Hz` +
-    (vizView || vizYView ? ` · zoom ${t0.toFixed(2)}–${t1.toFixed(2)} s` : "");
+  $("vizHint").textContent =
+    plot.info + (vizView || vizYView ? "  ·  zoomed (Reset to clear)" : "");
 }
 
 /* ---- drag tools: box-zoom and pan -------------------------------------- */
-function vizCurrentTMax() {
-  const rec = state.records.find((r) => String(r.id) === $("vizFile").value);
-  if (!rec || !rec.cols) return 1;
-  const fs = parseFloat($("fs").value) || 100;
-  return (rec.cols[0].length - 1) / fs;
-}
 
 /* Toggle a drag tool; clicking the active tool turns it off. */
 function vizSetMode(mode) {
@@ -714,16 +807,16 @@ function vizOnMove(ev) {
   vizDrag.y1 = p.y;
   if (vizDrag.mode === "pan") {
     const g = vizDrag.g;
-    const span = g.t1 - g.t0;
-    const tMax = vizCurrentTMax();
-    let nt0 = g.t0 - ((p.x - vizDrag.x0) / g.pW) * span;
-    let nt1 = nt0 + span;
-    if (nt0 < 0) { nt1 -= nt0; nt0 = 0; }
-    if (nt1 > tMax) { nt0 -= nt1 - tMax; nt1 = tMax; }
-    nt0 = Math.max(0, nt0);
-    vizView = nt1 - nt0 >= tMax - 1e-9 ? null : { t0: nt0, t1: nt1 };
+    const span = g.vx1 - g.vx0;
+    const full = g.xMax - g.xMin;
+    let a = g.vx0 - ((p.x - vizDrag.x0) / g.pW) * span;
+    let b = a + span;
+    if (a < g.xMin) { b += g.xMin - a; a = g.xMin; }
+    if (b > g.xMax) { a -= b - g.xMax; b = g.xMax; }
+    a = Math.max(g.xMin, a);
+    vizView = b - a >= full - 1e-9 ? null : { x0: a, x1: b };
     if (vizDrag.yStart) {
-      const shift = ((p.y - vizDrag.y0) / g.pH) * (g.yMax - g.yMin);
+      const shift = ((p.y - vizDrag.y0) / g.pH) * (g.vy1 - g.vy0);
       vizYView = { y0: vizDrag.yStart.y0 + shift, y1: vizDrag.yStart.y1 + shift };
     }
   }
@@ -742,13 +835,13 @@ function vizOnUp() {
     const yb = Math.min(g.mT + g.pH, Math.max(vizDrag.y0, vizDrag.y1));
     if (xb - xa > 6 && yb - ya > 6) {       // ignore tiny accidental drags
       vizView = {
-        t0: g.t0 + ((xa - g.mL) / g.pW) * (g.t1 - g.t0),
-        t1: g.t0 + ((xb - g.mL) / g.pW) * (g.t1 - g.t0),
+        x0: g.vx0 + ((xa - g.mL) / g.pW) * (g.vx1 - g.vx0),
+        x1: g.vx0 + ((xb - g.mL) / g.pW) * (g.vx1 - g.vx0),
       };
       // screen y is inverted: the top edge (ya) maps to the larger value
       vizYView = {
-        y0: g.yMin + ((g.mT + g.pH - yb) / g.pH) * (g.yMax - g.yMin),
-        y1: g.yMin + ((g.mT + g.pH - ya) / g.pH) * (g.yMax - g.yMin),
+        y0: g.vy0 + ((g.mT + g.pH - yb) / g.pH) * (g.vy1 - g.vy0),
+        y1: g.vy0 + ((g.mT + g.pH - ya) / g.pH) * (g.vy1 - g.vy0),
       };
     }
   }
@@ -756,24 +849,23 @@ function vizOnUp() {
   drawViz();
 }
 
-/* Zoom the visualization time axis by a factor about the window centre. */
+/* Zoom the visualization x-axis by a factor about the window centre. */
 function vizZoom(factor) {
-  const rec = state.records.find((r) => String(r.id) === $("vizFile").value);
-  if (!rec || !rec.cols) return;
-  const fs = parseFloat($("fs").value) || 100;
-  const tMax = (rec.cols[0].length - 1) / fs;
-  let a = vizView ? vizView.t0 : 0;
-  let b = vizView ? vizView.t1 : tMax;
+  if (!vizGeom) return;
+  const g = vizGeom;
+  const full = g.xMax - g.xMin;
+  let a = vizView ? vizView.x0 : g.xMin;
+  let b = vizView ? vizView.x1 : g.xMax;
   const c = (a + b) / 2;
   let span = (b - a) * factor;
-  span = Math.min(span, tMax);
-  span = Math.max(span, Math.max(8 / fs, tMax * 0.002)); // floor on zoom-in
+  span = Math.min(span, full);
+  span = Math.max(span, full * 0.002);
   a = c - span / 2;
   b = c + span / 2;
-  if (a < 0) { b -= a; a = 0; }
-  if (b > tMax) { a -= b - tMax; b = tMax; }
-  a = Math.max(0, a);
-  vizView = (b - a >= tMax - 1e-9) ? null : { t0: a, t1: b };
+  if (a < g.xMin) { b += g.xMin - a; a = g.xMin; }
+  if (b > g.xMax) { a -= b - g.xMax; b = g.xMax; }
+  a = Math.max(g.xMin, a);
+  vizView = b - a >= full - 1e-9 ? null : { x0: a, x1: b };
   drawViz();
 }
 
@@ -923,6 +1015,11 @@ function init() {
   $("vizFile").addEventListener("change", () => {
     vizView = null; vizYView = null; drawViz();
   });
+  $("vizType").addEventListener("change", () => {
+    vizView = null; vizYView = null;
+    applyVizType();
+    drawViz();
+  });
   $("vizZoomIn").addEventListener("click", () => vizZoom(0.6));
   $("vizZoomOut").addEventListener("click", () => vizZoom(1 / 0.6));
   $("vizBoxZoom").addEventListener("click", () => vizSetMode("box"));
@@ -943,6 +1040,18 @@ function init() {
     document.querySelectorAll(".viz-probe").forEach((c) => { c.checked = on; });
     drawViz();
   });
+  document.querySelectorAll(".viz-curve").forEach((cb) =>
+    cb.addEventListener("change", () => {
+      $("vizCurveAll").checked =
+        [...document.querySelectorAll(".viz-curve")].every((c) => c.checked);
+      drawViz();
+    })
+  );
+  $("vizCurveAll").addEventListener("change", () => {
+    const on = $("vizCurveAll").checked;
+    document.querySelectorAll(".viz-curve").forEach((c) => { c.checked = on; });
+    drawViz();
+  });
   $("vizBox").addEventListener("toggle", () => {
     if ($("vizBox").open) drawViz();
   });
@@ -951,7 +1060,16 @@ function init() {
   });
 
   applyMode();
+  applyVizType();
   updateSpacingReadout();
+}
+
+/* Show the probe checkboxes for time series, or the spectrum-curve
+ * checkboxes for the energy-spectrum plot. */
+function applyVizType() {
+  const spec = vizType() === "spectrum";
+  if ($("vizProbes")) $("vizProbes").hidden = spec;
+  if ($("vizCurves")) $("vizCurves").hidden = !spec;
 }
 
 /* Show/hide regular-only settings and update the mode note + table headers. */
