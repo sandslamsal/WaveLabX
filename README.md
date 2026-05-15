@@ -32,9 +32,28 @@ import wavelabx
 ```
 
 
+## Browser tool
+
+`web/` contains a self-contained browser application for three-probe
+reflection analysis — drop one or more 6-channel wave-gauge CSV files and
+get a complete table of incident/reflected wave heights and reflection
+coefficients for two probe arrays. It runs entirely client-side (no
+install, no server) and is deployable as a static site on Vercel.
+
+To run it locally, open `web/index.html`, or serve the folder:
+
+```bash
+cd web && python3 -m http.server 8000
+```
+
+To deploy on Vercel, import this repository and set the project
+**Root Directory** to `web`.
+
+
 ## Files included
 
 - `wavelabx/` — package source (API documented in docstrings)
+- `web/` — browser-based three-probe reflection analysis tool
 - `run_wavelabx_example.ipynb` — example notebook
 - `wavedata.csv` — example dataset
 - `figures/` — figures for manuscript and examples
