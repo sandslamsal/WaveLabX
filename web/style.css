@@ -372,6 +372,14 @@ footer {
   border-color: var(--accent);
 }
 .viz-zoom button:active { background: #e0e8f1; }
+.viz-zoom button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+#vizCanvas.mode-box { cursor: crosshair; }
+#vizCanvas.mode-pan { cursor: grab; }
+#vizCanvas.mode-pan:active { cursor: grabbing; }
 
 @media (max-width: 560px) {
   main { padding: 0 12px; }

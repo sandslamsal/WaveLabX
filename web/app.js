@@ -470,6 +470,10 @@ function renderTable() {
  * ------------------------------------------------------------------------- */
 const VIZ_COLORS = ["#1f5fa6", "#c0392b", "#1f7a4d", "#b9591a", "#6a4ca8", "#0e8a8a"];
 let vizView = null;   // visible time window {t0,t1}; null = full record
+let vizYView = null;  // visible elevation window {y0,y1}; null = autoscale
+let vizMode = "none"; // active drag tool: "none" | "box" | "pan"
+let vizDrag = null;   // in-progress drag state
+let vizGeom = null;   // geometry of the last draw, for pixel<->data inversion
 
 /* Repopulate the file selector from the current records (selection kept). */
 function refreshVizFiles() {
@@ -534,19 +538,26 @@ function drawViz() {
   const mL = 60, mR = 14, mT = 26, mB = 34;
   const pW = cssW - mL - mR, pH = cssH - mT - mB;
 
-  // y-range across the selected probes within the visible window
-  let yMin = Infinity, yMax = -Infinity;
-  for (const p of probes) {
-    const col = rec.cols[p];
-    for (let i = i0; i <= i1; i++) {
-      if (col[i] < yMin) yMin = col[i];
-      if (col[i] > yMax) yMax = col[i];
+  // y-range: explicit window if box-zoomed, otherwise autoscale to the
+  // selected probes within the visible time window
+  let yMin, yMax;
+  if (vizYView) {
+    yMin = vizYView.y0;
+    yMax = vizYView.y1;
+  } else {
+    yMin = Infinity; yMax = -Infinity;
+    for (const p of probes) {
+      const col = rec.cols[p];
+      for (let i = i0; i <= i1; i++) {
+        if (col[i] < yMin) yMin = col[i];
+        if (col[i] > yMax) yMax = col[i];
+      }
     }
+    if (!isFinite(yMin)) { hint.textContent = "No data in this file."; return; }
+    if (yMin === yMax) { yMin -= 1; yMax += 1; }
+    const pad = (yMax - yMin) * 0.06;
+    yMin -= pad; yMax += pad;
   }
-  if (!isFinite(yMin)) { hint.textContent = "No data in this file."; return; }
-  if (yMin === yMax) { yMin -= 1; yMax += 1; }
-  const pad = (yMax - yMin) * 0.06;
-  yMin -= pad; yMax += pad;
 
   const xOf = (t) => mL + ((t - t0) / (t1 - t0)) * pW;
   const yOf = (v) => mT + pH - ((v - yMin) / (yMax - yMin)) * pH;
@@ -636,9 +647,113 @@ function drawViz() {
     lx += 72;
   }
 
+  // store geometry for pixel<->data inversion by the drag tools
+  vizGeom = { mL, mT, pW, pH, t0, t1, yMin, yMax };
+
+  // rubber-band rectangle while box-zooming
+  if (vizDrag && vizDrag.mode === "box") {
+    const rx = Math.min(vizDrag.x0, vizDrag.x1);
+    const ry = Math.min(vizDrag.y0, vizDrag.y1);
+    const rw = Math.abs(vizDrag.x1 - vizDrag.x0);
+    const rh = Math.abs(vizDrag.y1 - vizDrag.y0);
+    ctx.fillStyle = "rgba(31,95,166,0.12)";
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeStyle = "rgba(31,95,166,0.85)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(rx, ry, rw, rh);
+    ctx.setLineDash([]);
+  }
+
   hint.textContent =
     `${rec.name} — ${N} samples, ${tMax.toFixed(1)} s at ${fs} Hz` +
-    (vizView ? ` · zoom ${t0.toFixed(2)}–${t1.toFixed(2)} s` : "");
+    (vizView || vizYView ? ` · zoom ${t0.toFixed(2)}–${t1.toFixed(2)} s` : "");
+}
+
+/* ---- drag tools: box-zoom and pan -------------------------------------- */
+function vizCurrentTMax() {
+  const rec = state.records.find((r) => String(r.id) === $("vizFile").value);
+  if (!rec || !rec.cols) return 1;
+  const fs = parseFloat($("fs").value) || 100;
+  return (rec.cols[0].length - 1) / fs;
+}
+
+/* Toggle a drag tool; clicking the active tool turns it off. */
+function vizSetMode(mode) {
+  vizMode = vizMode === mode ? "none" : mode;
+  $("vizBoxZoom").classList.toggle("active", vizMode === "box");
+  $("vizPan").classList.toggle("active", vizMode === "pan");
+  const cv = $("vizCanvas");
+  cv.classList.toggle("mode-box", vizMode === "box");
+  cv.classList.toggle("mode-pan", vizMode === "pan");
+}
+
+function vizPointer(ev) {
+  const r = $("vizCanvas").getBoundingClientRect();
+  return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+}
+
+function vizOnDown(ev) {
+  if (vizMode === "none" || !vizGeom) return;
+  const p = vizPointer(ev);
+  vizDrag = {
+    mode: vizMode,
+    x0: p.x, y0: p.y, x1: p.x, y1: p.y,
+    g: { ...vizGeom },
+    yStart: vizYView ? { ...vizYView } : null,
+  };
+  ev.preventDefault();
+  window.addEventListener("mousemove", vizOnMove);
+  window.addEventListener("mouseup", vizOnUp);
+}
+
+function vizOnMove(ev) {
+  if (!vizDrag) return;
+  const p = vizPointer(ev);
+  vizDrag.x1 = p.x;
+  vizDrag.y1 = p.y;
+  if (vizDrag.mode === "pan") {
+    const g = vizDrag.g;
+    const span = g.t1 - g.t0;
+    const tMax = vizCurrentTMax();
+    let nt0 = g.t0 - ((p.x - vizDrag.x0) / g.pW) * span;
+    let nt1 = nt0 + span;
+    if (nt0 < 0) { nt1 -= nt0; nt0 = 0; }
+    if (nt1 > tMax) { nt0 -= nt1 - tMax; nt1 = tMax; }
+    nt0 = Math.max(0, nt0);
+    vizView = nt1 - nt0 >= tMax - 1e-9 ? null : { t0: nt0, t1: nt1 };
+    if (vizDrag.yStart) {
+      const shift = ((p.y - vizDrag.y0) / g.pH) * (g.yMax - g.yMin);
+      vizYView = { y0: vizDrag.yStart.y0 + shift, y1: vizDrag.yStart.y1 + shift };
+    }
+  }
+  drawViz();
+}
+
+function vizOnUp() {
+  window.removeEventListener("mousemove", vizOnMove);
+  window.removeEventListener("mouseup", vizOnUp);
+  if (!vizDrag) return;
+  if (vizDrag.mode === "box") {
+    const g = vizDrag.g;
+    const xa = Math.max(g.mL, Math.min(vizDrag.x0, vizDrag.x1));
+    const xb = Math.min(g.mL + g.pW, Math.max(vizDrag.x0, vizDrag.x1));
+    const ya = Math.max(g.mT, Math.min(vizDrag.y0, vizDrag.y1));
+    const yb = Math.min(g.mT + g.pH, Math.max(vizDrag.y0, vizDrag.y1));
+    if (xb - xa > 6 && yb - ya > 6) {       // ignore tiny accidental drags
+      vizView = {
+        t0: g.t0 + ((xa - g.mL) / g.pW) * (g.t1 - g.t0),
+        t1: g.t0 + ((xb - g.mL) / g.pW) * (g.t1 - g.t0),
+      };
+      // screen y is inverted: the top edge (ya) maps to the larger value
+      vizYView = {
+        y0: g.yMin + ((g.mT + g.pH - yb) / g.pH) * (g.yMax - g.yMin),
+        y1: g.yMin + ((g.mT + g.pH - ya) / g.pH) * (g.yMax - g.yMin),
+      };
+    }
+  }
+  vizDrag = null;
+  drawViz();
 }
 
 /* Zoom the visualization time axis by a factor about the window centre. */
@@ -805,10 +920,17 @@ function init() {
   );
 
   // visualization controls
-  $("vizFile").addEventListener("change", () => { vizView = null; drawViz(); });
+  $("vizFile").addEventListener("change", () => {
+    vizView = null; vizYView = null; drawViz();
+  });
   $("vizZoomIn").addEventListener("click", () => vizZoom(0.6));
   $("vizZoomOut").addEventListener("click", () => vizZoom(1 / 0.6));
-  $("vizReset").addEventListener("click", () => { vizView = null; drawViz(); });
+  $("vizBoxZoom").addEventListener("click", () => vizSetMode("box"));
+  $("vizPan").addEventListener("click", () => vizSetMode("pan"));
+  $("vizCanvas").addEventListener("mousedown", vizOnDown);
+  $("vizReset").addEventListener("click", () => {
+    vizView = null; vizYView = null; drawViz();
+  });
   document.querySelectorAll(".viz-probe").forEach((cb) =>
     cb.addEventListener("change", () => {
       $("vizAll").checked =
