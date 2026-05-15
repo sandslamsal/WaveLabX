@@ -481,6 +481,41 @@ let vizPowCache = null;  // { key, spectra } — cached per-probe power spectra
 
 const vizType = () => ($("vizType") ? $("vizType").value : "series");
 
+/* NaN-aware centred moving average over `win` samples (spectral smoothing). */
+function movAvg(y, win) {
+  win = Math.max(1, Math.floor(win));
+  if (win <= 1) return y;
+  const n = y.length;
+  const out = new Float64Array(n);
+  const half = win >> 1;
+  for (let i = 0; i < n; i++) {
+    let s = 0, c = 0;
+    for (let k = -half; k <= half; k++) {
+      const j = i + k;
+      if (j < 0 || j >= n) continue;
+      const v = y[j];
+      if (Number.isNaN(v)) continue;
+      s += v; c++;
+    }
+    out[i] = c ? s / c : NaN;
+  }
+  return out;
+}
+
+/* Compact number format for the hover readout. */
+function fmtRead(v) {
+  const a = Math.abs(v);
+  if (a === 0) return "0";
+  if (a >= 1e4 || a < 1e-3) return v.toExponential(2);
+  if (a >= 100) return v.toFixed(1);
+  if (a >= 1) return v.toFixed(2);
+  return v.toFixed(3);
+}
+
+/* Current spectral-smoothing window (samples). */
+const vizSmoothWin = () =>
+  ($("vizSmooth") ? parseInt($("vizSmooth").value, 10) || 1 : 1);
+
 /* Repopulate the file selector from the current records (selection kept). */
 function refreshVizFiles() {
   const sel = $("vizFile");
@@ -569,13 +604,17 @@ function buildSpectrumPlot(rec) {
     .map((c) => c.value);
   if (!want.length) return { empty: "Select at least one spectrum to plot." };
 
+  const win = vizSmoothWin();
   const series = [];
   if (want.includes("inc"))
-    series.push({ label: "Incident", color: VIZ_SPEC.inc, x: a1.spectra.f, y: a1.spectra.Si });
+    series.push({ label: "Incident", color: VIZ_SPEC.inc,
+      x: a1.spectra.f, y: movAvg(a1.spectra.Si, win) });
   if (want.includes("ref"))
-    series.push({ label: "Reflected", color: VIZ_SPEC.ref, x: a1.spectra.f, y: a1.spectra.Sr });
+    series.push({ label: "Reflected", color: VIZ_SPEC.ref,
+      x: a1.spectra.f, y: movAvg(a1.spectra.Sr, win) });
   if (want.includes("tra"))
-    series.push({ label: "Transmitted", color: VIZ_SPEC.tra, x: a2.spectra.f, y: a2.spectra.Si });
+    series.push({ label: "Transmitted", color: VIZ_SPEC.tra,
+      x: a2.spectra.f, y: movAvg(a2.spectra.Si, win) });
 
   let xMin = Infinity, xMax = -Infinity;
   for (const ser of series)
@@ -623,6 +662,7 @@ function buildPowerPlot(rec) {
   }
   const fCap = Math.min(fs / 2, Math.max(2, fPeak * 8));
 
+  const win = vizSmoothWin();
   const series = probes.map((p) => {
     const sp = spectra[p];
     let hi = sp.f.length - 1;
@@ -631,7 +671,7 @@ function buildPowerPlot(rec) {
       label: "Probe " + (p + 1),
       color: VIZ_COLORS[p % VIZ_COLORS.length],
       x: sp.f.subarray(0, hi + 1),
-      y: sp.S.subarray(0, hi + 1),
+      y: movAvg(sp.S.subarray(0, hi + 1), win),
     };
   });
   return {
@@ -845,9 +885,13 @@ function renderPlot(ctx, cssW, cssH, plot) {
     lx += ctx.measureText(ser.label).width + 32;
   }
 
-  // geometry for the drag tools
+  // geometry for the drag tools + hover readout
+  const xm = /^(.*?)\s*\(([^)]*)\)\s*$/.exec(plot.xLabel) || [];
   vizGeom = { mL, mT, pW, pH, vx0: x0, vx1: x1, vy0: yMin, vy1: yMax,
-              xMin: plot.xMin, xMax: plot.xMax };
+              xMin: plot.xMin, xMax: plot.xMax,
+              ro: { xName: xm[1] || plot.xLabel, xUnit: xm[2] || "",
+                    yName: plot.yLabel, yUnit: plot.yUnit || "",
+                    yMul: plot.yFixed ? (plot.yMul || 1) : 1 } };
 
   // rubber-band rectangle while box-zooming
   if (vizDrag && vizDrag.mode === "box") {
@@ -883,6 +927,30 @@ function vizSetMode(mode) {
 function vizPointer(ev) {
   const r = $("vizCanvas").getBoundingClientRect();
   return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+}
+
+/* Hover readout — show the data coordinates under the cursor. */
+function vizHover(ev) {
+  const tip = $("vizTip");
+  if (!tip) return;
+  if (!vizGeom || vizDrag) { tip.style.display = "none"; return; }
+  const g = vizGeom;
+  const p = vizPointer(ev);
+  if (p.x < g.mL || p.x > g.mL + g.pW || p.y < g.mT || p.y > g.mT + g.pH) {
+    tip.style.display = "none";
+    return;
+  }
+  const dx = g.vx0 + ((p.x - g.mL) / g.pW) * (g.vx1 - g.vx0);
+  const dy = (g.vy0 + ((g.mT + g.pH - p.y) / g.pH) * (g.vy1 - g.vy0)) * g.ro.yMul;
+  tip.innerHTML =
+    `${g.ro.xName} <b>${fmtRead(dx)}</b> ${g.ro.xUnit}` +
+    ` &nbsp;·&nbsp; ${g.ro.yName} <b>${fmtRead(dy)}</b> ${g.ro.yUnit}`;
+  tip.style.display = "block";
+  let tx = p.x + 14, ty = p.y + 14;
+  if (tx + tip.offsetWidth > g.mL + g.pW) tx = p.x - tip.offsetWidth - 14;
+  if (ty + tip.offsetHeight > g.mT + g.pH) ty = p.y - tip.offsetHeight - 14;
+  tip.style.left = Math.max(0, tx) + "px";
+  tip.style.top = Math.max(0, ty) + "px";
 }
 
 function vizOnDown(ev) {
@@ -1120,6 +1188,12 @@ function init() {
     drawViz();
   });
   $("vizUnit").addEventListener("change", drawViz);
+  $("vizSmooth").addEventListener("change", drawViz);
+  $("vizCanvas").addEventListener("mousemove", vizHover);
+  $("vizCanvas").addEventListener("mouseleave", () => {
+    const tip = $("vizTip");
+    if (tip) tip.style.display = "none";
+  });
   $("vizZoomIn").addEventListener("click", () => vizZoom(0.6));
   $("vizZoomOut").addEventListener("click", () => vizZoom(1 / 0.6));
   $("vizBoxZoom").addEventListener("click", () => vizSetMode("box"));
@@ -1176,6 +1250,10 @@ function applyVizType() {
   // the m/cm/mm unit selector applies only to the time-series plot
   if ($("vizUnitWrap"))
     $("vizUnitWrap").style.display = t === "series" ? "inline-flex" : "none";
+  // spectral smoothing applies only to the spectrum plots
+  if ($("vizSmoothWrap"))
+    $("vizSmoothWrap").style.display =
+      t === "spectrum" || t === "power" ? "inline-flex" : "none";
 }
 
 /* Show/hide regular-only settings and update the mode note + table headers. */
