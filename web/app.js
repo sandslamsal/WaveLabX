@@ -260,16 +260,60 @@ function getSettings() {
   return { fs, fmin, fmax, depth, skipWaves, numWaves, pos1, pos2 };
 }
 
-/* Analyse one record. redetect = re-run frequency detection. */
+/* Current wave-type mode: "regular" or "irregular". */
+function getMode() {
+  const r = document.querySelector('input[name="wavemode"]:checked');
+  return r ? r.value : "regular";
+}
+
+/* Analyse one record. redetect = re-run frequency detection (regular mode). */
 function analyzeRecord(rec, redetect) {
   rec.error = null;
   const s = getSettings();
+  const mode = getMode();
 
   if (!rec.cols || rec.cols[0].length < 16) {
     rec.error = "Not a valid 6-column time series";
     rec.result = null;
     return;
   }
+
+  // ===== IRREGULAR (spectral) mode ====================================
+  if (mode === "irregular") {
+    if (!(rec.depth > 0)) {
+      rec.error = "Set water depth";
+      rec.result = null;
+      return;
+    }
+    const SP = typeof WaveLabXSpectral !== "undefined" ? WaveLabXSpectral
+      : typeof window !== "undefined" ? window.WaveLabXSpectral : null;
+    if (!SP) {
+      rec.error = "Spectral module not loaded";
+      rec.result = null;
+      return;
+    }
+    try {
+      const a1 = SP.threeProbeArray(rec.cols.slice(0, 3), s.fs, rec.depth, s.pos1);
+      const a2 = SP.threeProbeArray(rec.cols.slice(3, 6), s.fs, rec.depth, s.pos2);
+      rec.freq = a1.fp;                       // spectral-peak frequency
+      const ret = Math.min(a1.retained, a2.retained);
+      rec.result = {
+        Hi1: a1.Hi, Hr1: a1.Hr, Kr1: a1.Kr,
+        Hi2: a2.Hi, Hr2: a2.Hr, Kr2: a2.Kr,
+        Kt: a1.Hi > 0 ? a2.Hi / a1.Hi : NaN,
+        period: a1.Tp,
+        fallback: false, ratioWarn: false,
+        retained: ret, retainedWarn: !(ret >= 0.8),
+        spectral: true,
+      };
+    } catch (e) {
+      rec.error = "Computation failed: " + e.message;
+      rec.result = null;
+    }
+    return;
+  }
+
+  // ===== REGULAR (single-frequency) mode ==============================
   if (redetect && !rec.freqManual) {
     const f = detectFrequency(rec.cols.slice(0, 3), s.fs, s.fmin, s.fmax);
     if (f) rec.freq = f;
@@ -313,6 +357,7 @@ function analyzeRecord(rec, redetect) {
       fallback: a1.fallback || a2.fallback,
       L, dl1, dl2,
       ratioWarn: dl1 < DL_MIN || dl1 > DL_MAX || dl2 < DL_MIN || dl2 > DL_MAX,
+      spectral: false,
     };
   } catch (e) {
     rec.error = "Computation failed: " + e.message;
@@ -334,20 +379,25 @@ const fmt = (x, p = 4) =>
 function renderTable() {
   const body = $("resultsBody");
   body.innerHTML = "";
-  let anyFallback = false, anyRatio = false;
+  const irregular = getMode() === "irregular";
+  let anyFallback = false, anyRatio = false, anyRetained = false;
 
   state.records.forEach((rec) => {
     const tr = document.createElement("tr");
     const r = rec.result;
     if (r && r.fallback) anyFallback = true;
     if (r && r.ratioWarn) anyRatio = true;
+    if (r && r.retainedWarn) anyRetained = true;
 
     const depthCell = `<td class="editable">
         <input type="number" step="0.01" min="0" value="${rec.depth ?? ""}"
                data-id="${rec.id}" data-field="depth" /></td>`;
-    const freqCell = `<td class="editable">
-        <input type="number" step="0.001" min="0"
-               value="${rec.freq != null ? rec.freq.toFixed(3) : ""}"
+    const freqVal = rec.freq != null ? rec.freq.toFixed(3) : "";
+    // frequency is user-editable in regular mode; derived (peak) in irregular
+    const freqCell = irregular
+      ? `<td>${freqVal || "&mdash;"}</td>`
+      : `<td class="editable">
+        <input type="number" step="0.001" min="0" value="${freqVal}"
                data-id="${rec.id}" data-field="freq" /></td>`;
 
     if (rec.error) {
@@ -357,8 +407,9 @@ function renderTable() {
         <td colspan="8" class="badge-err">${rec.error}</td>
         <td><button class="row-del" data-del="${rec.id}">&times;</button></td>`;
     } else {
-      const cls = r.fallback || r.ratioWarn ? ' class="fallback"' : "";
-      const flag = r.fallback ? " &#9888;" : r.ratioWarn ? " &#9888;" : "";
+      const warnRow = r.fallback || r.ratioWarn || r.retainedWarn;
+      const cls = warnRow ? ' class="fallback"' : "";
+      const flag = warnRow ? " &#9888;" : "";
       tr.innerHTML = `
         <td title="${rec.name}">${rec.name}${flag}</td>
         ${depthCell}${freqCell}
@@ -387,6 +438,9 @@ function renderTable() {
   if (anyRatio)
     msgs.push("&#9888; Some rows have gauge spacing outside the valid range " +
       "0.05 &le; &Delta;l/L &le; 0.45 — interpret those with caution.");
+  if (anyRetained)
+    msgs.push("&#9888; Some rows retained less than 80% of spectral energy " +
+      "within the valid frequency band — interpret those with caution.");
   if (msgs.length) { warn.hidden = false; warn.innerHTML = msgs.join("<br>"); }
   else warn.hidden = true;
 
@@ -543,7 +597,36 @@ function init() {
     })
   );
 
+  // wave-type toggle -> adapt the UI and recompute everything
+  document.querySelectorAll('input[name="wavemode"]').forEach((el) =>
+    el.addEventListener("change", () => {
+      applyMode();
+      if (state.records.length) analyzeAll(true);
+    })
+  );
+
+  applyMode();
   updateSpacingReadout();
+}
+
+/* Show/hide regular-only settings and update the mode note + table headers. */
+function applyMode() {
+  const irregular = getMode() === "irregular";
+  ["fld-fmin", "fld-fmax", "fld-skip", "fld-num"].forEach((id) => {
+    const el = $(id);
+    if (el) el.style.display = irregular ? "none" : "";
+  });
+  const note = $("modeNote");
+  if (note) {
+    note.innerHTML = irregular
+      ? "Spectral method — incident/reflected separated at every frequency bin; "
+        + "H<sub>i</sub>, H<sub>r</sub> are H<sub>m0</sub> significant wave heights."
+      : "Single-frequency method — separation at the detected dominant wave frequency.";
+  }
+  // relabel the f / T column headers for the active mode
+  const thF = $("th-f"), thT = $("th-T");
+  if (thF) thF.innerHTML = irregular ? "<i>f</i><sub>p</sub> (Hz)" : "<i>f</i> (Hz)";
+  if (thT) thT.innerHTML = irregular ? "<i>T</i><sub>p</sub> (s)" : "<i>T</i> (s)";
 }
 
 if (typeof document !== "undefined") {
