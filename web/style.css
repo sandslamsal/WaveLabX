@@ -105,7 +105,7 @@ h3 { font-size: 0.86rem; font-weight: 600; }
   margin-bottom: 12px;
 }
 .field { display: flex; flex-direction: column; gap: 3px; min-width: 130px; }
-.field.grow { flex: 1; min-width: 220px; }
+.field.grow { flex: 1; min-width: 220px; max-width: 300px; }
 .field label { font-size: 0.76rem; font-weight: 550; }
 
 input[type="number"] {
