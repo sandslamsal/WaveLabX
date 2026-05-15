@@ -663,10 +663,11 @@ function renderPlot(ctx, cssW, cssH, plot) {
   const xOf = (t) => mL + ((t - x0) / (x1 - x0)) * pW;
   const yOf = (v) => mT + pH - ((v - yMin) / (yMax - yMin)) * pH;
   const xFmt = fmtAxis(x1 - x0);
-  // factor very small / very large y values into a "×10^k" label multiplier
+  // factor the y values into a "×10^k" label multiplier so the tick
+  // numbers stay in a readable mantissa range (applies to both plots)
   let yScaleExp = 0;
   const yMaxAbs = Math.max(Math.abs(yMin), Math.abs(yMax));
-  if (yMaxAbs > 0 && (yMaxAbs < 0.01 || yMaxAbs >= 1e4)) {
+  if (yMaxAbs > 0) {
     yScaleExp = -Math.floor(Math.log10(yMaxAbs));
   }
   const yScale = Math.pow(10, yScaleExp);
@@ -703,8 +704,10 @@ function renderPlot(ctx, cssW, cssH, plot) {
   const supFont = "8px -apple-system, BlinkMacSystemFont, sans-serif";
   const segs = [{ t: plot.yLabel, sup: false }];
   if (yScaleExp !== 0) {
+    // axis reads value × 10^labelExp, so labelExp = -yScaleExp
+    const labelExp = -yScaleExp;
     segs.push({ t: "  ×10", sup: false });
-    segs.push({ t: String(yScaleExp), sup: true });
+    segs.push({ t: (labelExp < 0 ? "−" : "") + Math.abs(labelExp), sup: true });
   }
   segs.push({ t: " (" + (plot.yUnit || "") + ")", sup: false });
   ctx.save();
