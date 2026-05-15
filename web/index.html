@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wave Reflection Analysis &mdash; Three-Probe Method</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="head-wrap">
+      <h1>Wave Reflection Analysis</h1>
+      <p class="sub">
+        Three-probe separation of incident and reflected waves &middot;
+        Goda &amp; Suzuki (1976), Kobayashi, Cox &amp; Wurjanto (1990)
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ METHODOLOGY ============ -->
+    <details class="method-box">
+      <summary>Methodology</summary>
+      <div class="method-body">
+        <p>
+          This tool implements the three-wave-probe reflection analysis
+          used by Lamsal, Haus &amp; Rhode-Barbarigos (2026), <em>An
+          experimental study on wave transmission over submerged
+          SEAHIVE&reg; breakwaters</em>, <em>Coastal Engineering
+          Journal</em>
+          (<a href="https://doi.org/10.1080/21664250.2026.2661171"
+             target="_blank" rel="noopener">doi:10.1080/21664250.2026.2661171</a>).
+        </p>
+        <p>
+          Following the methodology of <strong>Goda &amp; Suzuki
+          (1976)</strong> and <strong>Kobayashi, Cox &amp; Wurjanto
+          (1990)</strong>, incident and reflected wave heights are
+          separated from the records of three co-linear capacitance wave
+          probes using linear wave theory. Two probe arrays are deployed
+          &mdash; one seaward and one shoreward of the structure. For each
+          array the complex wave amplitude at the wave frequency is
+          obtained from a Hann-windowed discrete Fourier transform of each
+          gauge record (the DC offset is removed first). The wave number
+          <i>k</i> follows from the linear dispersion relation
+          &omega;&sup2;&nbsp;=&nbsp;<i>gk</i>&nbsp;tanh(<i>kd</i>), and the
+          incident and reflected amplitudes <i>a<sub>i</sub></i>,
+          <i>a<sub>r</sub></i> are recovered by complex least squares over
+          the three gauges:
+          <i>A<sub>j</sub></i>&nbsp;=&nbsp;<i>a<sub>i</sub></i>e<sup>&minus;ikx<sub>j</sub></sup>
+          +&nbsp;<i>a<sub>r</sub></i>e<sup>+ikx<sub>j</sub></sup>.
+        </p>
+        <p>
+          The method is valid when the probe spacing &Delta;<i>l</i>
+          satisfies <strong>0.05&nbsp;&le;&nbsp;&Delta;<i>l</i>/<i>L</i>&nbsp;&le;&nbsp;0.45</strong>,
+          where <i>L</i> is the local wavelength; outside this range a
+          gauge pair becomes ill-conditioned and the tool automatically
+          falls back to the best-conditioned pair. In the SEAHIVE
+          experiments, water levels were sampled at 100&nbsp;Hz on either
+          side of the structure under regular (monochromatic) waves. Wave
+          height is twice the recovered amplitude, and the coefficients
+          are defined as <i>K<sub>t</sub></i>&nbsp;=&nbsp;<i>H<sub>t</sub></i>/<i>H<sub>i</sub></i>
+          and <i>K<sub>r</sub></i>&nbsp;=&nbsp;<i>H<sub>r</sub></i>/<i>H<sub>i</sub></i>.
+        </p>
+        <p class="muted small">
+          Each input file holds six time-series columns:
+          channels&nbsp;1&ndash;3 form probe array&nbsp;1 (seaward &rarr;
+          <i>H<sub>i1</sub></i>, <i>H<sub>r1</sub></i>),
+          channels&nbsp;4&ndash;6 form probe array&nbsp;2 (shoreward &rarr;
+          <i>H<sub>i2</sub></i>, <i>H<sub>r2</sub></i>). The wave frequency
+          is detected automatically from the signal spectrum; water depth
+          is set below and may be overridden per file.
+        </p>
+      </div>
+    </details>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="card compact" id="settings">
+      <h2>Settings</h2>
+      <div class="settings-row">
+        <div class="field">
+          <label for="fs">Sampling freq (Hz)</label>
+          <input type="number" id="fs" value="100" min="1" step="1" />
+        </div>
+        <div class="field">
+          <label for="fmin">Detect band min (Hz)</label>
+          <input type="number" id="fmin" value="0.10" min="0" step="0.05" />
+        </div>
+        <div class="field">
+          <label for="fmax">Detect band max (Hz)</label>
+          <input type="number" id="fmax" value="2.00" min="0.1" step="0.05" />
+        </div>
+        <div class="field grow">
+          <label for="depth">Water depth <i>d</i> (m) &mdash; all files</label>
+          <div class="depth-apply">
+            <input type="number" id="depth" value="0.25" min="0" step="0.01" />
+            <button id="applyDepth" class="btn small">Apply to all</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="probe-row">
+        <div class="probe-array">
+          <h3>Array&nbsp;1 <span class="muted">&mdash; ch 1&ndash;3 (seaward)</span></h3>
+          <div class="pos-row">
+            <label>x<sub>1</sub><input type="number" class="pos1" data-i="0" value="0.00" step="0.01" /></label>
+            <label>x<sub>2</sub><input type="number" class="pos1" data-i="1" value="0.60" step="0.01" /></label>
+            <label>x<sub>3</sub><input type="number" class="pos1" data-i="2" value="0.90" step="0.01" /></label>
+          </div>
+          <p class="spacing-readout" id="spacing1"></p>
+        </div>
+        <div class="probe-array">
+          <h3>Array&nbsp;2 <span class="muted">&mdash; ch 4&ndash;6 (shoreward)</span></h3>
+          <div class="pos-row">
+            <label>x<sub>1</sub><input type="number" class="pos2" data-i="0" value="0.00" step="0.01" /></label>
+            <label>x<sub>2</sub><input type="number" class="pos2" data-i="1" value="0.30" step="0.01" /></label>
+            <label>x<sub>3</sub><input type="number" class="pos2" data-i="2" value="0.90" step="0.01" /></label>
+          </div>
+          <p class="spacing-readout" id="spacing2"></p>
+        </div>
+      </div>
+      <p class="hint">
+        Gauge positions are measured from gauge&nbsp;1 along the wave
+        direction (m). Water depth and gauge layout apply to every file;
+        wave frequency is detected per file and is editable in the table.
+      </p>
+    </section>
+
+    <!-- ============ DROP ZONE ============ -->
+    <div id="dropzone" class="dropzone">
+      <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true">
+        <path d="M12 16V4m0 0L7 9m5-5l5 5M5 20h14" fill="none"
+              stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <p><strong>Drop CSV files here</strong> &middot; or click to browse</p>
+      <p class="muted small">Each file: 6 columns of wave-gauge time series</p>
+      <input type="file" id="fileInput" accept=".csv" multiple hidden />
+    </div>
+
+    <!-- ============ RESULTS ============ -->
+    <section class="card compact" id="resultsCard" hidden>
+      <div class="results-head">
+        <h2>Results <span class="muted" id="rowCount"></span></h2>
+        <div class="actions">
+          <button id="recomputeBtn" class="btn small">Recompute</button>
+          <button id="exportBtn" class="btn small primary">Export CSV</button>
+          <button id="clearBtn" class="btn small ghost">Clear</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th><i>d</i> (m)</th>
+              <th><i>f</i> (Hz)</th>
+              <th><i>T</i> (s)</th>
+              <th>H<sub>i1</sub> (m)</th>
+              <th>H<sub>r1</sub> (m)</th>
+              <th>K<sub>r1</sub></th>
+              <th>H<sub>i2</sub> (m)</th>
+              <th>H<sub>r2</sub> (m)</th>
+              <th>K<sub>r2</sub></th>
+              <th>K<sub>t</sub></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+      <p class="note" id="warnNote" hidden></p>
+    </section>
+  </main>
+
+  <footer>
+    Three-probe reflection analysis &middot; runs entirely in your browser &mdash; no data is uploaded.
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
