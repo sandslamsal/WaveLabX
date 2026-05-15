@@ -478,6 +478,9 @@ let vizDrag = null;   // in-progress drag state
 let vizGeom = null;   // geometry of the last draw, for pixel<->data inversion
 let vizSpecCache = null; // { key, a1, a2 } — cached three-probe spectral analysis
 let vizPowCache = null;  // { key, spectra } — cached per-probe power spectra
+let vizPlot = null;      // current plot object (series), for snap lookups
+let vizHoverPt = null;   // snapped point under the cursor {px,py,color}
+let vizPins = [];        // clicked/pinned points [{type,x,y,color,label}]
 
 const vizType = () => ($("vizType") ? $("vizType").value : "series");
 
@@ -515,6 +518,43 @@ function fmtRead(v) {
 /* Current spectral-smoothing window (samples). */
 const vizSmoothWin = () =>
   ($("vizSmooth") ? parseInt($("vizSmooth").value, 10) || 1 : 1);
+
+/* Nearest index in an ascending numeric array (binary search). */
+function nearestIndex(xs, xv) {
+  let lo = 0, hi = xs.length - 1;
+  if (hi <= 0 || xv <= xs[0]) return 0;
+  if (xv >= xs[hi]) return hi;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (xs[mid] < xv) lo = mid; else hi = mid;
+  }
+  return xv - xs[lo] <= xs[hi] - xv ? lo : hi;
+}
+
+/* Find the data point nearest a pixel position, across the visible series. */
+function vizSnap(px, py) {
+  if (!vizGeom || !vizPlot) return null;
+  const g = vizGeom;
+  const xOf = (x) => g.mL + ((x - g.vx0) / (g.vx1 - g.vx0)) * g.pW;
+  const yOf = (v) => g.mT + g.pH - ((v - g.vy0) / (g.vy1 - g.vy0)) * g.pH;
+  const cursorX = g.vx0 + ((px - g.mL) / g.pW) * (g.vx1 - g.vx0);
+  let best = null, bestD = Infinity;
+  for (const ser of vizPlot.series) {
+    const c = nearestIndex(ser.x, cursorX);
+    for (let i = Math.max(0, c - 3); i <= Math.min(ser.y.length - 1, c + 3); i++) {
+      const yv = ser.y[i];
+      if (Number.isNaN(yv)) continue;
+      const sx = xOf(ser.x[i]), sy = yOf(yv);
+      const d = (sx - px) ** 2 + (sy - py) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = { x: ser.x[i], y: yv, px: sx, py: sy,
+                 color: ser.color, label: ser.label };
+      }
+    }
+  }
+  return best;
+}
 
 /* Repopulate the file selector from the current records (selection kept). */
 function refreshVizFiles() {
@@ -700,8 +740,9 @@ function drawViz() {
   ctx.clearRect(0, 0, cssW, cssH);
 
   if (!rec || !rec.cols) {
-    vizGeom = null;
+    vizGeom = null; vizPlot = null;
     hint.textContent = "No file selected — load CSV files first.";
+    drawOverlay();
     return;
   }
   let plot;
@@ -711,16 +752,20 @@ function drawViz() {
       : t === "power" ? buildPowerPlot(rec)
         : buildSeriesPlot(rec);
   } catch (e) {
-    vizGeom = null;
+    vizGeom = null; vizPlot = null;
     hint.textContent = "Plot failed: " + e.message;
+    drawOverlay();
     return;
   }
   if (!plot || plot.empty || !plot.series || !plot.series.length) {
-    vizGeom = null;
+    vizGeom = null; vizPlot = null;
     hint.textContent = plot && plot.empty ? plot.empty : "Nothing to plot.";
+    drawOverlay();
     return;
   }
+  vizPlot = plot;
   renderPlot(ctx, cssW, cssH, plot);
+  drawOverlay();
 }
 
 /* Shared renderer: axes, gridlines, line+dot series, legend, zoom window. */
@@ -929,28 +974,110 @@ function vizPointer(ev) {
   return { x: ev.clientX - r.left, y: ev.clientY - r.top };
 }
 
-/* Hover readout — show the data coordinates under the cursor. */
+/* Hover readout — snap to the nearest data point and show its values. */
 function vizHover(ev) {
   const tip = $("vizTip");
   if (!tip) return;
-  if (!vizGeom || vizDrag) { tip.style.display = "none"; return; }
+  const clear = () => {
+    tip.style.display = "none";
+    if (vizHoverPt) { vizHoverPt = null; drawOverlay(); }
+  };
+  if (!vizGeom || !vizPlot || vizDrag) { clear(); return; }
   const g = vizGeom;
   const p = vizPointer(ev);
   if (p.x < g.mL || p.x > g.mL + g.pW || p.y < g.mT || p.y > g.mT + g.pH) {
-    tip.style.display = "none";
+    clear();
     return;
   }
-  const dx = g.vx0 + ((p.x - g.mL) / g.pW) * (g.vx1 - g.vx0);
-  const dy = (g.vy0 + ((g.mT + g.pH - p.y) / g.pH) * (g.vy1 - g.vy0)) * g.ro.yMul;
+  const snap = vizSnap(p.x, p.y);
+  if (!snap) { clear(); return; }
+  vizHoverPt = { px: snap.px, py: snap.py, color: snap.color };
+  const dy = snap.y * g.ro.yMul;
   tip.innerHTML =
-    `${g.ro.xName} <b>${fmtRead(dx)}</b> ${g.ro.xUnit}` +
-    ` &nbsp;·&nbsp; ${g.ro.yName} <b>${fmtRead(dy)}</b> ${g.ro.yUnit}`;
+    `<b>${snap.label}</b>&nbsp; ` +
+    `${g.ro.xName} ${fmtRead(snap.x)} ${g.ro.xUnit}` +
+    ` &nbsp;·&nbsp; ${g.ro.yName} ${fmtRead(dy)} ${g.ro.yUnit}`;
   tip.style.display = "block";
-  let tx = p.x + 14, ty = p.y + 14;
-  if (tx + tip.offsetWidth > g.mL + g.pW) tx = p.x - tip.offsetWidth - 14;
-  if (ty + tip.offsetHeight > g.mT + g.pH) ty = p.y - tip.offsetHeight - 14;
+  let tx = snap.px + 14, ty = snap.py + 14;
+  if (tx + tip.offsetWidth > g.mL + g.pW) tx = snap.px - tip.offsetWidth - 14;
+  if (ty + tip.offsetHeight > g.mT + g.pH) ty = snap.py - tip.offsetHeight - 14;
   tip.style.left = Math.max(0, tx) + "px";
   tip.style.top = Math.max(0, ty) + "px";
+  drawOverlay();
+}
+
+/* Draw a hover ring (pinned=false) or a pin dot (pinned=true). */
+function vizMarker(ctx, x, y, color, pinned) {
+  ctx.beginPath();
+  ctx.arc(x, y, pinned ? 4 : 5, 0, 2 * Math.PI);
+  if (pinned) {
+    ctx.fillStyle = color; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = "#fff"; ctx.stroke();
+  } else {
+    ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = color; ctx.stroke();
+  }
+}
+
+/* Redraw the marker overlay: pinned points + the current hover point. */
+function drawOverlay() {
+  const ov = $("vizOverlay");
+  const main = $("vizCanvas");
+  if (!ov || !main) return;
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = main.clientWidth || 1000, cssH = 380;
+  ov.width = Math.round(cssW * dpr);
+  ov.height = Math.round(cssH * dpr);
+  const ctx = ov.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+  if (!vizGeom) return;
+  const g = vizGeom;
+  const xOf = (x) => g.mL + ((x - g.vx0) / (g.vx1 - g.vx0)) * g.pW;
+  const yOf = (v) => g.mT + g.pH - ((v - g.vy0) / (g.vy1 - g.vy0)) * g.pH;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(g.mL, g.mT, g.pW, g.pH);
+  ctx.clip();
+  ctx.font = "10px -apple-system, BlinkMacSystemFont, sans-serif";
+
+  for (const pin of vizPins) {
+    if (pin.type !== vizType()) continue;
+    const px = xOf(pin.x), py = yOf(pin.y);
+    if (px < g.mL - 6 || px > g.mL + g.pW + 6) continue;
+    vizMarker(ctx, px, py, pin.color, true);
+    const txt = `${fmtRead(pin.x)} ${g.ro.xUnit}, ` +
+      `${fmtRead(pin.y * g.ro.yMul)} ${g.ro.yUnit}`;
+    const tw = ctx.measureText(txt).width;
+    let lx = px + 8, ly = py - 8;
+    if (lx + tw + 6 > g.mL + g.pW) lx = px - tw - 14;
+    if (ly - 11 < g.mT) ly = py + 20;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.fillRect(lx - 3, ly - 11, tw + 6, 14);
+    ctx.fillStyle = pin.color;
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText(txt, lx, ly - 4);
+  }
+  if (vizHoverPt) vizMarker(ctx, vizHoverPt.px, vizHoverPt.py, vizHoverPt.color, false);
+  ctx.restore();
+}
+
+/* Click a point to pin / unpin its readout. */
+function vizClick(ev) {
+  if (vizMode !== "none" || !vizGeom || !vizPlot) return;
+  const p = vizPointer(ev);
+  const g = vizGeom;
+  if (p.x < g.mL || p.x > g.mL + g.pW || p.y < g.mT || p.y > g.mT + g.pH) return;
+  const snap = vizSnap(p.x, p.y);
+  if (!snap) return;
+  const ty = vizType();
+  const at = vizPins.findIndex(
+    (pn) => pn.type === ty && pn.x === snap.x && pn.y === snap.y);
+  if (at >= 0) vizPins.splice(at, 1);
+  else vizPins.push({ type: ty, x: snap.x, y: snap.y,
+                      color: snap.color, label: snap.label });
+  drawOverlay();
 }
 
 function vizOnDown(ev) {
@@ -1180,19 +1307,22 @@ function init() {
 
   // visualization controls
   $("vizFile").addEventListener("change", () => {
-    vizView = null; vizYView = null; drawViz();
+    vizView = null; vizYView = null; vizPins = []; vizHoverPt = null;
+    drawViz();
   });
   $("vizType").addEventListener("change", () => {
-    vizView = null; vizYView = null;
+    vizView = null; vizYView = null; vizPins = []; vizHoverPt = null;
     applyVizType();
     drawViz();
   });
   $("vizUnit").addEventListener("change", drawViz);
   $("vizSmooth").addEventListener("change", drawViz);
   $("vizCanvas").addEventListener("mousemove", vizHover);
+  $("vizCanvas").addEventListener("click", vizClick);
   $("vizCanvas").addEventListener("mouseleave", () => {
     const tip = $("vizTip");
     if (tip) tip.style.display = "none";
+    if (vizHoverPt) { vizHoverPt = null; drawOverlay(); }
   });
   $("vizZoomIn").addEventListener("click", () => vizZoom(0.6));
   $("vizZoomOut").addEventListener("click", () => vizZoom(1 / 0.6));
