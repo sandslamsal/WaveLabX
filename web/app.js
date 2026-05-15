@@ -1165,11 +1165,11 @@ function vizZoom(factor) {
 
 function updateSpacingReadout() {
   const s = getSettings();
-  const sp = (p) =>
-    `Gauge positions from gauge&nbsp;1: ` +
+  const sp = (p, g) =>
+    `Gauge positions from gauge&nbsp;${g}: ` +
     `${p[0].toFixed(2)}, ${p[1].toFixed(2)}, ${p[2].toFixed(2)} m`;
-  $("spacing1").innerHTML = sp(s.pos1);
-  $("spacing2").innerHTML = sp(s.pos2);
+  $("spacing1").innerHTML = sp(s.pos1, 1);
+  $("spacing2").innerHTML = sp(s.pos2, 4);
 }
 
 /* ---------------------------------------------------------------------------
