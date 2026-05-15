@@ -34,6 +34,8 @@ import wavelabx
 
 ## Browser tool
 
+**Live demo: [wave-lab-x.vercel.app](https://wave-lab-x.vercel.app)**
+
 `web/` contains a self-contained browser application for three-probe
 reflection analysis — drop one or more 6-channel wave-gauge CSV files and
 get a complete table of incident/reflected wave heights and reflection

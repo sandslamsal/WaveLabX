@@ -1,5 +1,7 @@
 # Wave Reflection Analysis
 
+**Live demo: [wave-lab-x.vercel.app](https://wave-lab-x.vercel.app)**
+
 A browser-based tool for **three-probe wave reflection analysis** —
 separation of incident and reflected wave heights from co-linear
 capacitance wave-gauge records.

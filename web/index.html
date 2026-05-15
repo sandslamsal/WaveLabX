@@ -87,7 +87,7 @@
         </div>
         <div class="field">
           <label for="fmax">Detect band max (Hz)</label>
-          <input type="number" id="fmax" value="2.00" min="0.1" step="0.05" />
+          <input type="number" id="fmax" value="4.00" min="0.1" step="0.05" />
         </div>
         <div class="field grow">
           <label for="depth">Water depth <i>d</i> (m) &mdash; all files</label>
@@ -102,26 +102,35 @@
         <div class="probe-array">
           <h3>Array&nbsp;1 <span class="muted">&mdash; ch 1&ndash;3 (seaward)</span></h3>
           <div class="pos-row">
-            <label>x<sub>1</sub><input type="number" class="pos1" data-i="0" value="0.00" step="0.01" /></label>
-            <label>x<sub>2</sub><input type="number" class="pos1" data-i="1" value="0.60" step="0.01" /></label>
-            <label>x<sub>3</sub><input type="number" class="pos1" data-i="2" value="0.90" step="0.01" /></label>
+            <label>X<sub>12</sub><input type="number" class="sp1" data-i="0" value="0.45" step="0.01" /></label>
+            <label>X<sub>23</sub><input type="number" class="sp1" data-i="1" value="0.30" step="0.01" /></label>
           </div>
+          <p class="hint">
+            X<sub>12</sub> = spacing between gauges&nbsp;1 and&nbsp;2;
+            X<sub>23</sub> = spacing between gauges&nbsp;2 and&nbsp;3, in
+            metres. Gauge&nbsp;1 is the reference (position&nbsp;0).
+          </p>
           <p class="spacing-readout" id="spacing1"></p>
         </div>
         <div class="probe-array">
           <h3>Array&nbsp;2 <span class="muted">&mdash; ch 4&ndash;6 (shoreward)</span></h3>
           <div class="pos-row">
-            <label>x<sub>1</sub><input type="number" class="pos2" data-i="0" value="0.00" step="0.01" /></label>
-            <label>x<sub>2</sub><input type="number" class="pos2" data-i="1" value="0.30" step="0.01" /></label>
-            <label>x<sub>3</sub><input type="number" class="pos2" data-i="2" value="0.90" step="0.01" /></label>
+            <label>X<sub>12</sub><input type="number" class="sp2" data-i="0" value="0.45" step="0.01" /></label>
+            <label>X<sub>23</sub><input type="number" class="sp2" data-i="1" value="0.30" step="0.01" /></label>
           </div>
+          <p class="hint">
+            X<sub>12</sub> = spacing between gauges&nbsp;1 and&nbsp;2;
+            X<sub>23</sub> = spacing between gauges&nbsp;2 and&nbsp;3, in
+            metres. Gauge&nbsp;1 is the reference (position&nbsp;0).
+          </p>
           <p class="spacing-readout" id="spacing2"></p>
         </div>
       </div>
       <p class="hint">
-        Gauge positions are measured from gauge&nbsp;1 along the wave
-        direction (m). Water depth and gauge layout apply to every file;
-        wave frequency is detected per file and is editable in the table.
+        Each array is defined by two gauge spacings; gauge positions are
+        taken as 0, X<sub>12</sub>, X<sub>12</sub>+X<sub>23</sub>. Water
+        depth and gauge layout apply to every file; wave frequency is
+        detected per file and is editable in the table.
       </p>
     </section>
 

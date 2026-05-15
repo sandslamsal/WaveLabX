@@ -245,12 +245,16 @@ function getSettings() {
   const fmin = parseFloat($("fmin").value) || 0.1;
   const fmax = parseFloat($("fmax").value) || 2.0;
   const depth = parseFloat($("depth").value) || 0.25;
-  const pos1 = [...document.querySelectorAll(".pos1")]
-    .sort((a, b) => a.dataset.i - b.dataset.i)
-    .map((el) => parseFloat(el.value) || 0);
-  const pos2 = [...document.querySelectorAll(".pos2")]
-    .sort((a, b) => a.dataset.i - b.dataset.i)
-    .map((el) => parseFloat(el.value) || 0);
+  // Each array is defined by two spacings (X12, X23); gauge positions
+  // are 0, X12, X12+X23.
+  const spacings = (cls) => {
+    const s = [...document.querySelectorAll(cls)]
+      .sort((a, b) => a.dataset.i - b.dataset.i)
+      .map((el) => parseFloat(el.value) || 0);
+    return [0, s[0], s[0] + s[1]];
+  };
+  const pos1 = spacings(".sp1");
+  const pos2 = spacings(".sp2");
   return { fs, fmin, fmax, depth, pos1, pos2 };
 }
 
@@ -386,9 +390,8 @@ function renderTable() {
 function updateSpacingReadout() {
   const s = getSettings();
   const sp = (p) =>
-    `Spacing: 1&ndash;2 = ${(p[1] - p[0]).toFixed(2)} m, ` +
-    `2&ndash;3 = ${(p[2] - p[1]).toFixed(2)} m, ` +
-    `1&ndash;3 = ${(p[2] - p[0]).toFixed(2)} m`;
+    `Gauge positions from gauge&nbsp;1: ` +
+    `${p[0].toFixed(2)}, ${p[1].toFixed(2)}, ${p[2].toFixed(2)} m`;
   $("spacing1").innerHTML = sp(s.pos1);
   $("spacing2").innerHTML = sp(s.pos2);
 }
@@ -505,7 +508,7 @@ function init() {
   });
 
   // gauge layout / sampling changes -> recompute (no re-detect needed)
-  document.querySelectorAll("#fs, .pos1, .pos2").forEach((el) =>
+  document.querySelectorAll("#fs, .sp1, .sp2").forEach((el) =>
     el.addEventListener("change", () => {
       updateSpacingReadout();
       if (state.records.length) analyzeAll(false);
