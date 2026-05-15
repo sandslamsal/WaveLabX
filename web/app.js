@@ -529,7 +529,8 @@ function buildSeriesPlot(rec) {
   }));
   return {
     xLabel: "Time (s)",
-    yLabel: "Surface elevation (m)",
+    yLabel: "Surface elevation",
+    yUnit: "m",
     xMin: 0,
     xMax: (N - 1) * dt,
     series,
@@ -577,7 +578,8 @@ function buildSpectrumPlot(rec) {
 
   return {
     xLabel: "Frequency (Hz)",
-    yLabel: "Spectral density S(f) (m²·s)",
+    yLabel: "Spectral density S(f)",
+    yUnit: "m²·s",
     xMin, xMax, series,
     info: `${rec.name} — incident/reflected from probes 1–3, ` +
       `transmitted from probes 4–6`,
@@ -660,7 +662,15 @@ function renderPlot(ctx, cssW, cssH, plot) {
 
   const xOf = (t) => mL + ((t - x0) / (x1 - x0)) * pW;
   const yOf = (v) => mT + pH - ((v - yMin) / (yMax - yMin)) * pH;
-  const xFmt = fmtAxis(x1 - x0), yFmt = fmtAxis(yMax - yMin);
+  const xFmt = fmtAxis(x1 - x0);
+  // factor very small / very large y values into a "×10^k" label multiplier
+  let yScaleExp = 0;
+  const yMaxAbs = Math.max(Math.abs(yMin), Math.abs(yMax));
+  if (yMaxAbs > 0 && (yMaxAbs < 0.01 || yMaxAbs >= 1e4)) {
+    yScaleExp = -Math.floor(Math.log10(yMaxAbs));
+  }
+  const yScale = Math.pow(10, yScaleExp);
+  const yFmt = fmtAxis((yMax - yMin) * yScale);
 
   // grid + ticks
   ctx.strokeStyle = "#e2e7ee";
@@ -673,7 +683,7 @@ function renderPlot(ctx, cssW, cssH, plot) {
     const v = yMin + (i / 5) * (yMax - yMin);
     const y = yOf(v);
     ctx.beginPath(); ctx.moveTo(mL, y); ctx.lineTo(mL + pW, y); ctx.stroke();
-    ctx.fillText(yFmt(v), mL - 6, y);
+    ctx.fillText(yFmt(v * yScale), mL - 6, y);
   }
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
@@ -687,10 +697,33 @@ function renderPlot(ctx, cssW, cssH, plot) {
   // axis titles
   ctx.fillStyle = "#1a2433";
   ctx.fillText(plot.xLabel, mL + pW / 2, cssH - 13);
+
+  // rotated y-axis title, with a "×10^k" factor (k as a superscript)
+  const baseFont = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+  const supFont = "8px -apple-system, BlinkMacSystemFont, sans-serif";
+  const segs = [{ t: plot.yLabel, sup: false }];
+  if (yScaleExp !== 0) {
+    segs.push({ t: "  ×10", sup: false });
+    segs.push({ t: String(yScaleExp), sup: true });
+  }
+  segs.push({ t: " (" + (plot.yUnit || "") + ")", sup: false });
   ctx.save();
   ctx.translate(13, mT + pH / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillText(plot.yLabel, 0, 0);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  let segTotal = 0;
+  for (const sg of segs) {
+    ctx.font = sg.sup ? supFont : baseFont;
+    segTotal += ctx.measureText(sg.t).width;
+  }
+  let segX = -segTotal / 2;
+  for (const sg of segs) {
+    ctx.font = sg.sup ? supFont : baseFont;
+    ctx.fillText(sg.t, segX, sg.sup ? -4 : 0);
+    segX += ctx.measureText(sg.t).width;
+  }
+  ctx.font = baseFont;
   ctx.restore();
 
   // series — line + dot at each plotted point, clipped to the plot area
@@ -1064,12 +1097,14 @@ function init() {
   updateSpacingReadout();
 }
 
-/* Show the probe checkboxes for time series, or the spectrum-curve
- * checkboxes for the energy-spectrum plot. */
+/* Show the probe checkboxes for the time-series plot, or the
+ * spectrum-curve checkboxes for the energy-spectrum plot — never both.
+ * (display is set inline because the .viz-probes class would otherwise
+ * override the [hidden] attribute.) */
 function applyVizType() {
   const spec = vizType() === "spectrum";
-  if ($("vizProbes")) $("vizProbes").hidden = spec;
-  if ($("vizCurves")) $("vizCurves").hidden = !spec;
+  if ($("vizProbes")) $("vizProbes").style.display = spec ? "none" : "flex";
+  if ($("vizCurves")) $("vizCurves").style.display = spec ? "flex" : "none";
 }
 
 /* Show/hide regular-only settings and update the mode note + table headers. */
