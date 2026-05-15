@@ -51,13 +51,30 @@ cd web && python3 -m http.server 8000
 - `web/` — browser-based reflection-analysis and visualization tool
 - `run_wavelabx_example.ipynb` — example notebook
 - `wavedata.csv` — example dataset
-- `figures/` — figures for manuscript and examples
-- `paper.md`, `paper.bib` — JOSS manuscript source
+- `figures/` — figures and examples
 
-## License & Citation
+## License
 
 WaveLabX is released under the MIT License (see `LICENSE`).
 
-If you use WaveLabX in published research, please cite the associated JOSS manuscript and the archived software release on Zenodo. Citation metadata is provided in `CITATION.cff`.
+## How to cite
 
-Zenodo archive DOI: [10.5281/zenodo.18049227](https://doi.org/10.5281/zenodo.18049227)
+If you use WaveLabX in your research, please cite the archived software release:
+
+> Lamsal, S., & Rhode-Barbarigos, L. (2025). *WaveLabX* (v0.1.0) [Software]. Zenodo. [https://doi.org/10.5281/zenodo.18049227](https://doi.org/10.5281/zenodo.18049227)
+
+BibTeX:
+
+```bibtex
+@software{wavelabx,
+  author    = {Lamsal, Sandesh and Rhode-Barbarigos, Landolf},
+  title     = {WaveLabX},
+  version   = {0.1.0},
+  year      = {2025},
+  doi       = {10.5281/zenodo.18049227},
+  url       = {https://github.com/sandslamsal/WaveLabX},
+  publisher = {Zenodo}
+}
+```
+
+Citation metadata is also provided in `CITATION.cff`.
