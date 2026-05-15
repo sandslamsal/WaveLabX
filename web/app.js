@@ -255,7 +255,9 @@ function getSettings() {
   };
   const pos1 = spacings(".sp1");
   const pos2 = spacings(".sp2");
-  return { fs, fmin, fmax, depth, pos1, pos2 };
+  const skipWaves = Math.max(0, parseInt($("skipWaves").value, 10) || 0);
+  const numWaves = Math.max(0, parseInt($("numWaves").value, 10) || 0);
+  return { fs, fmin, fmax, depth, skipWaves, numWaves, pos1, pos2 };
 }
 
 /* Analyse one record. redetect = re-run frequency detection. */
@@ -278,8 +280,28 @@ function analyzeRecord(rec, redetect) {
     return;
   }
   try {
-    const a1 = threeProbe(rec.cols.slice(0, 3), s.fs, rec.freq, rec.depth, s.pos1);
-    const a2 = threeProbe(rec.cols.slice(3, 6), s.fs, rec.freq, rec.depth, s.pos2);
+    // Optional analysis window: skip the first M waves, then use N waves.
+    // Frequency is always detected on the full record; the window only
+    // restricts the three-probe computation.
+    let cols = rec.cols;
+    rec.windowInfo = null;
+    if ((s.skipWaves > 0 || s.numWaves > 0) && rec.freq > 0) {
+      const N = rec.cols[0].length;
+      const spw = s.fs / rec.freq;                 // samples per wave
+      let start = Math.round(s.skipWaves * spw);
+      let len = s.numWaves > 0 ? Math.round(s.numWaves * spw) : N - start;
+      start = Math.min(Math.max(start, 0), N);
+      len = Math.min(Math.max(len, 0), N - start);
+      if (len < 16) {
+        rec.error = "Analysis window too short — reduce skip or increase waves";
+        rec.result = null;
+        return;
+      }
+      cols = rec.cols.map((c) => c.slice(start, start + len));
+      rec.windowInfo = { start, len, waves: len / spw };
+    }
+    const a1 = threeProbe(cols.slice(0, 3), s.fs, rec.freq, rec.depth, s.pos1);
+    const a2 = threeProbe(cols.slice(3, 6), s.fs, rec.freq, rec.depth, s.pos2);
     const L = wavelength(rec.freq, rec.depth);
     const dl1 = (Math.max(...s.pos1) - Math.min(...s.pos1)) / L;
     const dl2 = (Math.max(...s.pos2) - Math.min(...s.pos2)) / L;
@@ -508,7 +530,7 @@ function init() {
   });
 
   // gauge layout / sampling changes -> recompute (no re-detect needed)
-  document.querySelectorAll("#fs, .sp1, .sp2").forEach((el) =>
+  document.querySelectorAll("#fs, #skipWaves, #numWaves, .sp1, .sp2").forEach((el) =>
     el.addEventListener("change", () => {
       updateSpacingReadout();
       if (state.records.length) analyzeAll(false);
